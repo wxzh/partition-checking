@@ -37,6 +37,7 @@ Some abstract ...
 > import Test.QuickCheck
 > import Data.List
 
+
 reverse
 
 > reverse1 :: [a] -> [a]
