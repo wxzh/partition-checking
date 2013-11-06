@@ -37,11 +37,12 @@ Some abstract ...
 > import Test.QuickCheck
 > import Data.List
 
+
 reverse
 
 > reverse1 :: [a] -> [a]
 > reverse1 [] = []
-> reverse1 (x:xs) = reverse xs ++ [x]
+> reverse1 (x:xs) = reverse1 xs ++ [x]
 >
 > reverse2 :: [a] -> [a]
 > reverse2 xs = revAcc xs []
@@ -95,61 +96,136 @@ sort
 > prop_sort1 xs = isSorted (sort xs)
 
 \subsection{Equational Reasoning}
+<       prop_rev_reg
 
-<       evalWriter (logfib (n + 2))
-<   ==  {- unfold |logfib| and |fix| -}
-<       evalWriter (log . fib2 . logfib ( n + 2))
-<   ==  {- unfold |log| -}
-<       evalWriter ( do  tell "entering fib." 
-<                        fib2 logfib (n + 2))
-<   ==  {- unfold |fib2| \& reduce case -}    
-<       evalWriter ( do  tell "entering fib"
-<                        f1 <- logfib (n + 1)
-<                        f2 <- logfib n
-<                        return (f1 + f2))
-<   ==  {- unfold |return| -}
-<       evalWriter ( do  tell "entering fib"
-<                        f1 <- logfib (n + 1)
-<                        f2 <- logfib n
-<                        Writer (f1 + f2,""))
-<   ==  {- unfold |>>=| -}
-<       evalWriter ( do  tell "entering fib"
-<                        f1 <- logfib (n + 1)
-<                        Writer  (evalWriter (Writer (f1 + evalWriter (logfib n),""))
-<                                ,execWriter (logfib n) ++ 
-<                                 execWriter (Writer (f1 + evalWriter (logfib n),""))))
-<   ==  {- (1) |evalWriter (Writer (x,y)) == x| and (2) |execWriter (Writer (x,y)) == y| -}
-<       evalWriter ( do  tell "entering fib"
-<                        f1 <- logfib (n + 1)
-<                        Writer  (f1 + evalWriter (logfib n)
-<                                ,execWriter (logfib n) ++ ""))
-<   ==  {- (3) |l ++ "" == l| -}
-<       evalWriter ( do  tell "entering fib"
-<                        f1 <- logfib (n + 1)
-<                        Writer  (f1 + evalWriter (logfib n)
-<                                ,execWriter (logfib n)))
-<   ==  {- unfold |>>=| -}
-<       evalWriter ( do  tell "entering fib"
-<                        Writer  (evalWriter (Writer  (evalWriter (logfib (n + 1)) + evalWriter (logfib n)
-<                                                     ,execWriter (logfib n)))
-<                                ,  execWriter (logfib (n+1)) ++
-<                                   execWriter (Writer  (evalWriter (logfib (n + 1)) + evalWriter (logfib n)
-<                                                       ,execWriter (logfib n)))))
-<   ==  {- |evalWriter (Writer (x,y)) == x| and |execWriter (Writer (x,y)) == y| -}
-<       evalWriter ( do  tell "entering fib"
-<                        Writer  (evalWriter (logfib (n+1))  +   evalWriter (logfib n)
-<                                ,execWriter (logfib (n+1))  ++  execWriter (logfib n)))
-<   ==  {- unfold |>>=| -}
-<       evalWriter ( Writer  (evalWriter (Writer  (evalWriter (logfib (n+1))  +   evalWriter (logfib n)
-<                                                 ,execWriter (logfib (n+1))  ++  execWriter (logfib n)))
-<                            ,  execWriter (tell "entering fib.") ++
-<                               execWriter (Writer  (evalWriter (logfib (n+1))  +   evalWriter (logfib n)
-<                                                   ,execWriter (logfib (n+1))  ++  execWriter (logfib n)))))
-<   ==  {- |evalWriter (Writer (x,y)) == x| -}
-<       evalWriter (logfib (n + 1)) + evalWriter (logfib n)
-<   ==  {- |induction hypotheses| -}
-<       runId (slowfib2 (n + 1)) + runId (slowfib2 n)
-<   ==  {- (4) |runId (slowfib2 (n+1)) + runId (slowfib2 n) == runId (slowfib2 (n+2)| -}
-<       runId (slowfib2 (n+2))
+<       xs = []
+<
+<       reverse1 xs == reverse2 xs
+<   ==  {- definitions of |reverse1| and |reverse2|-}
+<       [] == revAcc xs []
+<   ==  {- definition of |revAcc| -}
+<       [] == []
+<   ==  
+<       True
+
+<       xs = [X]
+<       reverse1 xs == reverse2 xs
+<   ==  
+<       reverse1 [] ++ [X] == revAcc [X] []
+<   ==  
+<       [X] == revAcc [] (X:[])
+<   == 
+<       True
+
+The polymorphic case is always simple. Add we are exploiting the fact that the function is polymorphic. 
+On the contrary, QuickCheck is weak here. It is not easy to tell whether the test performed on a selected
+monomorphic type is sufficient or not.   
+
+
+<       prop_filterP
+
+<       xs = []
+<
+<       all (>0) (filterPos []) 
+<   ==
+<       all (>0) []
+<   ==
+<       True
+
+<       xs = [X]
+<
+<       all (>0) (filterPos [X]) 
+<   ==  {- Both branches are True -}
+<       True
+
+<       xs = [X] where X > 0
+<
+<       all (>0) (filterPos [X])
+<   ==  
+<       all (>0) (X:filterPos [])
+<   == 
+<       all (>0) [X]
+<   == 
+<       True
+
+<       xs = [X] where X <= 0
+<
+<       all (>0) (filterPos [X])
+<   ==  
+<       all (>0) (filterPos [])
+<   == 
+<       all (>0) []
+<   == 
+<       True
+
+<       xs = [X,Y]
+<
+<       all (>0) (filterPos [X,Y]) 
+<   ==  {- All branches are True -}
+<       True
+
+<       xs = [X,Y] where X > 0
+<
+<       all (>0) (filterPos [X,Y])
+<   ==  
+<       all (>0) (X:filterPos [Y])
+<   ==  {- All branches are True -}
+<       True
+
+<       xs = [X,Y] where X > 0, Y > 0
+<
+<       all (>0) (filterPos [X,Y])
+<   ==  
+<       all (>0) (X:filterPos [Y])
+<   ==
+<       all (>0) (X:Y:filterPos [])
+<   ==  
+<       all (>0) [X,Y]
+<   ==  
+<       True
+
+<       xs = [X,Y] where X > 0, Y <= 0
+<
+<       all (>0) (filterPos [X,Y])
+<   ==  
+<       all (>0) (X:filterPos [Y])
+<   ==
+<       all (>0) (X:Y:filterPos [])
+<   ==  
+<       all (>0) [X]
+<   ==  
+<       True
+
+<       xs = [X,Y] where X <= 0
+<
+<       all (>0) (filterPos [X,Y])
+<   ==  
+<       all (>0) (filterPos [Y])
+<   ==  {- All branches are True -}
+<       True
+
+<       xs = [X,Y] where X <= 0, Y > 0
+<
+<       all (>0) (filterPos [X,Y])
+<   ==  
+<       all (>0) (filterPos [Y])
+<   ==
+<       all (>0) (Y:filterPos [])
+<   ==  
+<       all (>0) [Y]
+<   ==  
+<       True
+
+<       xs = [X,Y] where X <= 0, Y <= 0
+<
+<       all (>0) (filterPos [X,Y])
+<   ==  
+<       all (>0) (filterPos [Y])
+<   ==
+<       all (>0) (filterPos [])
+<   ==  
+<       all (>0) []
+<   ==  
+<       True
 
 \end{document}
