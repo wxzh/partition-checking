@@ -133,6 +133,12 @@ Applies program to symbolic variables
 
 > isPositive = ELam (\n -> ELt (EInt 0) (EBVar n))
 
+> p1 = ELam (\n -> EIf (ELt (EBVar n) (EInt 10)) (EInt (-1)) (EInt 1))
+>
+> p2 = ELam (\n -> EIf (ELt (EBVar n) (EInt 5)) (EInt (-1)) (EInt 1))
+>
+> prop_p1_p2 = ELam (\n -> EEq (EApp p1 (EBVar n)) (EApp p2 (EBVar n))) 
+
 > prop_fact = ELam (\n -> EApp isPositive (EApp fact (EBVar n))) 
 
 > t = eval (EApp fact (EInt 10))
