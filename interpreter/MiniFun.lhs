@@ -2,6 +2,8 @@
 
 Using PHOAS to represent variable binding
 
+Need to represent primitives in a better way?
+
 > data PExp a b =
 >     EFVar b 
 >   | EBVar a
@@ -20,23 +22,77 @@ Using PHOAS to represent variable binding
 
 > data Value = VInt Int | VBool Bool | VFun (Value -> Value)
 
-> data SymValue a = 
->     SFVar a -- free variables 
+> data SymValue = 
+>     SFVar Int -- free variables 
 >   | SInt Int 
 >   | SBool Bool 
->   | SEq (SymValue a) (SymValue a)
->   | SLt (SymValue a) (SymValue a)
->   | SAdd (SymValue a) (SymValue a)
->   | SMul (SymValue a) (SymValue a)
->   | SFun (SymValue a -> SymValue a)
+>   | SEq SymValue SymValue
+>   | SLt SymValue SymValue
+>   | SAdd SymValue SymValue
+>   | SMul SymValue SymValue
+>   | SApp SymValue SymValue
+>   | SFun (ExecutionTree -> ExecutionTree) -- just store the function
 
-> type OExp = SymValue Int
+> type OExp = SymValue
 >
 > data ExecutionTree = Exp OExp | Fork OExp (ExecutionTree) (ExecutionTree) 
 
+Applies program to symbolic variables
+
+> exec :: ExecutionTree -> ExecutionTree
+> exec e = exec' e 0
+>
+> exec' :: ExecutionTree -> Int -> ExecutionTree
+> exec' (Exp (SFun f)) n = exec' (f (Exp (SFVar n))) (n+1)
+> exec' e              n = e
+
+> seval :: PExp ExecutionTree Int -> ExecutionTree
+> seval (EFVar x)         = Exp (SFVar x)
+> seval (EBVar e)         = e
+> seval (EInt x)          = Exp (SInt x)
+> seval (EBool b)         = Exp (SBool b)
+> seval (EIf e1 e2 e3)    = propagate (seval e1) (seval e2) (seval e3) -- loses sharing!!
+> seval (EAdd e1 e2)      = merge SAdd (seval e1) (seval e2) -- loses sharing!!
+> seval (EMul e1 e2)      = merge SMul (seval e1) (seval e2) -- loses sharing!!
+> seval (EEq e1 e2)       = merge SEq  (seval e1) (seval e2) -- loses sharing!!
+> seval (ELt e1 e2)       = merge SLt  (seval e1) (seval e2)
+> seval (ELam f)          = Exp (SFun (seval . f))
+> seval e@(ELet f g)      = let v = seval (f v) in seval (g v)
+> seval (EApp e1 e2)      = treeApply (seval e1) (seval e2)
+>
+> treeApply (Exp (SFVar x)) t = apply (SApp (SFVar x)) t  -- f e
+> treeApply (Exp (SFun f)) t  = f t                       -- (\x . e1) e2
+> treeApply (Fork e1 e2 e3) t = Fork e1 (treeApply e2 t) (treeApply e3 t)
+>
+> apply f (Exp e)          = Exp (f e) 
+> apply f (Fork e1 e2 e3)  = Fork e1 (apply f e2) (apply f e3)
+
+> pp' :: ExecutionTree -> String -> Int -> (String,Int)
+> pp' _ s 0 = ("",0)
+> pp' (Exp e) s stop = (s ++ " ==> " ++ ppSymValue e ++ "\n", stop - 1)
+> pp' (Fork e1 e2 e3) s stop = 
+>  let s1         = ppSymValue e1
+>      (s2,stop2) = pp' e2 (s ++ " && " ++ s1) stop
+>      (s3,stop3) = pp' e3 (s ++ " && " ++ "not (" ++ s1 ++ ")") stop2
+>  in (s2 ++ s3,stop3)
+
+> pp e = fst $ pp' e "True" 5 -- stop after 3 results
+
+> ppSymValue :: SymValue -> String
+> ppSymValue (SFVar n)     = "x" ++ show n
+> ppSymValue (SInt i)      = show i
+> ppSymValue (SBool b)     = show b
+> ppSymValue (SEq v1 v2)   = "(" ++ ppSymValue v1 ++ " == " ++ ppSymValue v2 ++ ")"
+> ppSymValue (SAdd v1 v2)  = "(" ++ ppSymValue v1 ++ " + " ++ ppSymValue v2 ++ ")"
+> ppSymValue (SMul v1 v2)  = "(" ++ ppSymValue v1 ++ " * " ++ ppSymValue v2 ++ ")"
+> ppSymValue (SLt v1 v2)   = "(" ++ ppSymValue v1 ++ " < " ++ ppSymValue v2 ++ ")"
+> ppSymValue (SApp v1 v2)  = ppSymValue v1 ++ " " ++ ppSymValue v2
+> ppSymValue (SFun f)      = "<<function>>"
+
+> {-
 > seval :: PExp (InfExp Int) Int -> Int -> ExecutionTree
 > seval (EFVar x)         n = Exp (SFVar x)
-> seval (EBVar (Fold e))  n = seval e n
+> seval (EBVar (Fold e))  n = seval e n -- e : ExecutionTree
 > seval (EInt x)          n = Exp (SInt x)
 > seval (EBool b)         n = Exp (SBool b)
 > seval (EIf e1 e2 e3)    n = propagate (seval e1 n) (seval e2 n) (seval e3 n) -- loses sharing!!
@@ -44,25 +100,27 @@ Using PHOAS to represent variable binding
 > seval (EMul e1 e2)      n = merge SMul (seval e1 n) (seval e2 n) -- loses sharing!!
 > seval (EEq e1 e2)       n = merge SEq  (seval e1 n) (seval e2 n) -- loses sharing!!
 > seval (ELt e1 e2)       n = merge SLt  (seval e1 n) (seval e2 n)
-> seval (ELam f)          n = seval (f (Fold (EFVar n))) (n+1)
+> seval (ELam f)          n = Exp (SFun f) -- seval (f (Fold (EFVar n))) (n+1)
 > seval e@(ELet f g)      n = seval (g (Fold (f (Fold e)))) n -- unrolls the fixpoint
 > seval (EApp e1 e2)      n = treeApply (seval e1 n) (seval e2 n)
 
 > pp :: ExecutionTree -> String
 > pp (Exp e) = ppSymValue e
 
-> ppSymValue :: SymValue Int -> String
+> ppSymValue :: SymValue -> String
 > ppSymValue (SFVar n)    = "x" ++ show n
 > ppSymValue (SInt i)     = show i
 > ppSymValue (SBool b)    = show b
 > ppSymValue (SEq v1 v2)  = "(" ++ ppSymValue v1 ++ " == " ++ ppSymValue v2 ++ ")"
 > -- ppSymValue (
 
-> treeApply (Exp (SFun f)) t = apply f t
+> treeApply (Exp (SFVar x)) t = apply (SApp (SFVar x)) t  -- f e
+> treeApply (Exp (SFun f)) t  = apply f t                 -- (\x . e1) e2
 > treeApply (Fork e1 e2 e3) t = Fork e1 (treeApply e2 t) (treeApply e3 t)
 
 > apply f (Exp e) = Exp (f e) 
 > apply f (Fork e1 e2 e3) = Fork e1 (apply f e2) (apply f e3)
+> -}
 
 let v = seval (f v) n in eval (g v) 
 
@@ -111,3 +169,5 @@ let v = seval (f v) n in eval (g v)
 >       (EMul (EBVar n) (EApp (EBVar fact) (EAdd (EBVar n) (EInt (-1))))))) EBVar
 
 > t = eval (EApp fact (EInt 10))
+
+> fun e = putStrLn (pp (exec (seval e)))
