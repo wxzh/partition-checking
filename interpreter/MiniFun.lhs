@@ -76,7 +76,7 @@ Applies program to symbolic variables
 >      (s3,stop3) = pp' e3 (s ++ " && " ++ "not (" ++ s1 ++ ")") stop2
 >  in (s2 ++ s3,stop3)
 
-> pp e = fst $ pp' e "True" 5 -- stop after 3 results
+> pp e = fst $ pp' e "True" 5 -- stop after 5 results
 
 > ppSymValue :: SymValue -> String
 > ppSymValue (SFVar n)     = "x" ++ show n
@@ -167,6 +167,10 @@ let v = seval (f v) n in eval (g v)
 >   EIf (ELt (EBVar n) (EInt 1))
 >       (EInt 1)
 >       (EMul (EBVar n) (EApp (EBVar fact) (EAdd (EBVar n) (EInt (-1))))))) EBVar
+
+> isPositive = ELam (\n -> ELt (EInt 0) (EBVar n))
+
+> prop_fact = ELam (\n -> EApp isPositive (EApp fact (EBVar n))) 
 
 > t = eval (EApp fact (EInt 10))
 
