@@ -57,7 +57,7 @@ Applies program to symbolic variables
 > seval (EEq e1 e2)       = merge SEq  (seval e1) (seval e2) -- loses sharing!!
 > seval (ELt e1 e2)       = merge SLt  (seval e1) (seval e2)
 > seval (ELam f)          = Exp (SFun (seval . f))
-> seval e@(ELet f g)      = let v = seval (f v) in seval (g v)
+> seval (ELet f g)        = let v = seval (f v) in seval (g v)
 > seval (EApp e1 e2)      = treeApply (seval e1) (seval e2)
 >
 > treeApply (Exp (SFVar x)) t = apply (SApp (SFVar x)) t  -- f e
@@ -88,41 +88,6 @@ Applies program to symbolic variables
 > ppSymValue (SLt v1 v2)   = "(" ++ ppSymValue v1 ++ " < " ++ ppSymValue v2 ++ ")"
 > ppSymValue (SApp v1 v2)  = ppSymValue v1 ++ " " ++ ppSymValue v2
 > ppSymValue (SFun f)      = "<<function>>"
-
-> {-
-> seval :: PExp (InfExp Int) Int -> Int -> ExecutionTree
-> seval (EFVar x)         n = Exp (SFVar x)
-> seval (EBVar (Fold e))  n = seval e n -- e : ExecutionTree
-> seval (EInt x)          n = Exp (SInt x)
-> seval (EBool b)         n = Exp (SBool b)
-> seval (EIf e1 e2 e3)    n = propagate (seval e1 n) (seval e2 n) (seval e3 n) -- loses sharing!!
-> seval (EAdd e1 e2)      n = merge SAdd (seval e1 n) (seval e2 n) -- loses sharing!!
-> seval (EMul e1 e2)      n = merge SMul (seval e1 n) (seval e2 n) -- loses sharing!!
-> seval (EEq e1 e2)       n = merge SEq  (seval e1 n) (seval e2 n) -- loses sharing!!
-> seval (ELt e1 e2)       n = merge SLt  (seval e1 n) (seval e2 n)
-> seval (ELam f)          n = Exp (SFun f) -- seval (f (Fold (EFVar n))) (n+1)
-> seval e@(ELet f g)      n = seval (g (Fold (f (Fold e)))) n -- unrolls the fixpoint
-> seval (EApp e1 e2)      n = treeApply (seval e1 n) (seval e2 n)
-
-> pp :: ExecutionTree -> String
-> pp (Exp e) = ppSymValue e
-
-> ppSymValue :: SymValue -> String
-> ppSymValue (SFVar n)    = "x" ++ show n
-> ppSymValue (SInt i)     = show i
-> ppSymValue (SBool b)    = show b
-> ppSymValue (SEq v1 v2)  = "(" ++ ppSymValue v1 ++ " == " ++ ppSymValue v2 ++ ")"
-> -- ppSymValue (
-
-> treeApply (Exp (SFVar x)) t = apply (SApp (SFVar x)) t  -- f e
-> treeApply (Exp (SFun f)) t  = apply f t                 -- (\x . e1) e2
-> treeApply (Fork e1 e2 e3) t = Fork e1 (treeApply e2 t) (treeApply e3 t)
-
-> apply f (Exp e) = Exp (f e) 
-> apply f (Fork e1 e2 e3) = Fork e1 (apply f e2) (apply f e3)
-> -}
-
-let v = seval (f v) n in eval (g v) 
 
 > propagate (Exp e) et1 et2 = Fork e et1 et2
 > propagate (Fork e l r) et1 et2 = Fork e (propagate l et1 et2) (propagate r et1 et2)
