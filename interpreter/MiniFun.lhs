@@ -32,10 +32,8 @@ Need to represent primitives in a better way?
 >   | SMul SymValue SymValue
 >   | SApp SymValue SymValue
 >   | SFun (ExecutionTree -> ExecutionTree) -- just store the function
-
-> type OExp = SymValue
 >
-> data ExecutionTree = Exp OExp | Fork OExp (ExecutionTree) (ExecutionTree) 
+> data ExecutionTree = Exp SymValue | Fork SymValue (ExecutionTree) (ExecutionTree) 
 
 Applies program to symbolic variables
 
