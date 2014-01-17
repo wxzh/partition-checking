@@ -1,5 +1,7 @@
 > module MiniFun where
 
+> import Prelude hiding (EQ,LT)
+
 Using PHOAS to represent variable binding
 
 Need to represent primitives in a better way?
@@ -35,6 +37,8 @@ Need to represent primitives in a better way?
 >
 > data ExecutionTree = Exp SymValue | Fork SymValue (ExecutionTree) (ExecutionTree) 
 
+> data Op = ADD | MUL | LT | EQ
+
 Applies program to symbolic variables
 
 > exec :: ExecutionTree -> ExecutionTree
@@ -50,10 +54,10 @@ Applies program to symbolic variables
 > seval (EInt x)          = Exp (SInt x)
 > seval (EBool b)         = Exp (SBool b)
 > seval (EIf e1 e2 e3)    = propagate (seval e1) (seval e2) (seval e3) -- loses sharing!!
-> seval (EAdd e1 e2)      = merge SAdd (seval e1) (seval e2) -- loses sharing!!
-> seval (EMul e1 e2)      = merge SMul (seval e1) (seval e2) -- loses sharing!!
-> seval (EEq e1 e2)       = merge SEq  (seval e1) (seval e2) -- loses sharing!!
-> seval (ELt e1 e2)       = merge SLt  (seval e1) (seval e2)
+> seval (EAdd e1 e2)      = merge (SAdd,ADD) (seval e1) (seval e2) -- loses sharing!!
+> seval (EMul e1 e2)      = merge (SMul,MUL) (seval e1) (seval e2) -- loses sharing!!
+> seval (EEq e1 e2)       = merge (SEq,EQ)  (seval e1) (seval e2) -- loses sharing!!
+> seval (ELt e1 e2)       = merge (SLt,LT)  (seval e1) (seval e2)
 > seval (ELam f)          = Exp (SFun (seval . f))
 > seval (ELet f g)        = let v = seval (f v) in seval (g v)
 > seval (EApp e1 e2)      = treeApply (seval e1) (seval e2)
@@ -90,7 +94,16 @@ Applies program to symbolic variables
 > propagate (Exp e) et1 et2 = Fork e et1 et2
 > propagate (Fork e l r) et1 et2 = Fork e (propagate l et1 et2) (propagate r et1 et2)
 >
-> merge f (Exp e1) (Exp e2) = Exp (f e1 e2)
+> merge (_,MUL) (Exp (SInt x)) (Exp (SInt y)) = Exp (SInt (x*y)) -- partial evaluation
+> merge (_,MUL) (Exp (SInt 1)) e = e
+> merge (_,MUL) e (Exp (SInt 1)) = e
+> merge (_,MUL) (Exp (SInt 0)) e = Exp (SInt 0)
+> merge (_,MUL) e (Exp (SInt 0)) = Exp (SInt 0)
+> merge (_,ADD) (Exp (SInt x)) (Exp (SInt y)) = Exp (SInt (x+y))
+> merge (_,EQ) (Exp (SInt x)) (Exp (SInt y)) = Exp (SBool (x==y))
+> merge (_,EQ) (Exp (SBool x)) (Exp (SBool y)) = Exp (SBool (x==y))
+> merge (_,LT) (Exp (SInt x)) (Exp (SInt y)) = Exp (SBool (x<y))
+> merge f (Exp e1) (Exp e2) = Exp (fst f e1 e2)
 > merge f (Fork e1 e2 e3) t = Fork e1 (merge f e2 t) (merge f e3 t)
 > merge f t (Fork e1 e2 e3) = Fork e1 (merge f t e2) (merge f t e3) 
 
