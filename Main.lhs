@@ -228,4 +228,10 @@ monomorphic type is sufficient or not.
 <   ==  
 <       True
 
+\section{Related Work}\label{sec:related}
+%include RelatedWork.lhs
+
+\bibliographystyle{plain}
+\bibliography{literature}
+
 \end{document}
