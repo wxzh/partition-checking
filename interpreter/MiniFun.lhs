@@ -1,6 +1,7 @@
 > module MiniFun where
 
 > import Prelude hiding (EQ,LT)
+> import Data.Maybe
 
 Using PHOAS to represent variable binding
 
@@ -19,10 +20,56 @@ Need to represent primitives in a better way?
 >   | ELet (a -> PExp a b) (a -> PExp a b)
 >   | ELam (a -> PExp a b)
 >   | EApp (PExp a b) (PExp a b)
+>   -- Adding case analysis and constructors
+>   | ECon String [PExp a b]                -- constructor
+>   | ECase (PExp a b) [(String, [a] -> PExp a b)]     -- case expression
+
+ECon String (PExp a b)
+
+ECase [Pat a b]
+
+eval 
+
+EPat String ([a] -> PExp a b)
+
+Standard (big-step) interpreter
+
+> data Value = VInt Int | VBool Bool | VFun (Value -> Value) | VCon String [Value]
+>
+> eval :: PExp Value () -> Value
+> eval (EFVar _)       = error "ops! Free variable"
+> eval (EBVar v)       = v
+> eval (EInt x)        = VInt x
+> eval (EBool b)       = VBool b
+> eval (EIf e1 e2 e3)  = 
+>  case eval e1 of
+>     VBool b -> if b then eval e2 else eval e3
+> eval (EEq e1 e2)     =
+>  case (eval e1, eval e2) of 
+>     (VBool v1, VBool v2) -> VBool (v1 == v2)
+>     (VInt v1, VInt v2)   -> VBool (v1 == v2)
+> eval (ELt e1 e2)     =
+>  case (eval e1, eval e2) of
+>     (VInt v1, VInt v2) -> VBool (v1 < v2)
+> eval (EAdd e1 e2)    =
+>  case (eval e1, eval e2) of 
+>     (VInt v1, VInt v2) -> VInt (v1 + v2)
+> eval (EMul e1 e2)    =
+>  case (eval e1, eval e2) of 
+>     (VInt v1, VInt v2) -> VInt (v1 * v2)
+> eval (ELet f g)      = let v = eval (f v) in eval (g v) 
+> eval (ELam f)           = VFun (eval . f)
+> eval (EApp e1 e2)       = 
+>  case (eval e1) of
+>     VFun f -> f (eval e2)
+> eval (ECon s xs)        = VCon s (map eval xs)
+> eval (ECase e clauses)  = 
+>  case eval e of
+>     VCon s vs -> eval (fromJust (lookup s clauses) vs)
 
 > newtype InfExp a = Fold {unFold :: PExp (InfExp a) a}
 
-> data Value = VInt Int | VBool Bool | VFun (Value -> Value)
+
 
 > data SymValue = 
 >     SFVar Int -- free variables 
@@ -112,37 +159,17 @@ Applies program to symbolic variables
 >   show (VInt x) = show x
 >   show (VBool b) = show b
 
-> eval :: PExp Value () -> Value
-> eval (EFVar _)       = error "ops! Free variable"
-> eval (EBVar v)       = v
-> eval (EInt x)        = VInt x
-> eval (EBool b)       = VBool b
-> eval (EIf e1 e2 e3)  = 
->  case eval e1 of
->     VBool b -> if b then eval e2 else eval e3
-> eval (EEq e1 e2)     =
->  case (eval e1, eval e2) of 
->     (VBool v1, VBool v2) -> VBool (v1 == v2)
->     (VInt v1, VInt v2)   -> VBool (v1 == v2)
-> eval (ELt e1 e2)     =
->  case (eval e1, eval e2) of
->     (VInt v1, VInt v2) -> VBool (v1 < v2)
-> eval (EAdd e1 e2)    =
->  case (eval e1, eval e2) of 
->     (VInt v1, VInt v2) -> VInt (v1 + v2)
-> eval (EMul e1 e2)    =
->  case (eval e1, eval e2) of 
->     (VInt v1, VInt v2) -> VInt (v1 * v2)
-> eval (ELet f g)      = let v = eval (f v) in eval (g v) 
-> eval (ELam f)           = VFun (eval . f)
-> eval (EApp e1 e2)       = 
->  case (eval e1) of
->     VFun f -> f (eval e2)
 
 > fact = ELet (\fact -> ELam (\n ->
 >   EIf (ELt (EBVar n) (EInt 1))
 >       (EInt 1)
 >       (EMul (EBVar n) (EApp (EBVar fact) (EAdd (EBVar n) (EInt (-1))))))) EBVar
+
+> sumList = ELet (\sumList -> ELam (\l -> 
+>   ECase (EBVar l) [
+>     ("Nil", \_ -> EInt 0),
+>     ("Cons", \(x:xs:[]) -> EAdd (EBVar x) (EApp (EBVar sumList) (EBVar xs)))
+>   ])) EBVar
 
 > isPositive = ELam (\n -> ELt (EInt 0) (EBVar n))
 
@@ -155,5 +182,13 @@ Applies program to symbolic variables
 > prop_fact = ELam (\n -> EApp isPositive (EApp fact (EBVar n))) 
 
 > t = eval (EApp fact (EInt 10))
+
+> t1 = eval (EApp sumList (toIntList [1..100]))
+
+> toList :: (a -> PExp b c) -> [a] -> PExp b c
+> toList f []      = ECon "Nil" []
+> toList f (x:xs)  = ECon "Cons" [f x, toList f xs]
+>
+> toIntList = toList EInt
 
 > fun e = putStrLn (pp (exec (seval e)))
