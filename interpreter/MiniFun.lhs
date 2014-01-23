@@ -67,9 +67,7 @@ Standard (big-step) interpreter
 >  case eval e of
 >     VCon s vs -> eval (fromJust (lookup s clauses) vs)
 
-> newtype InfExp a = Fold {unFold :: PExp (InfExp a) a}
-
-
+Symbolic interpreter
 
 > data SymValue = 
 >     SFVar Int -- free variables 
@@ -80,6 +78,7 @@ Standard (big-step) interpreter
 >   | SAdd SymValue SymValue
 >   | SMul SymValue SymValue
 >   | SApp SymValue SymValue
+>   | SCon String [SymValue]
 >   | SFun (ExecutionTree -> ExecutionTree) -- just store the function
 >
 > data ExecutionTree = Exp SymValue | Fork SymValue (ExecutionTree) (ExecutionTree) 
@@ -96,19 +95,56 @@ Applies program to symbolic variables
 > exec' e              n = e
 
 > seval :: PExp ExecutionTree Int -> ExecutionTree
-> seval (EFVar x)         = Exp (SFVar x)
-> seval (EBVar e)         = e
-> seval (EInt x)          = Exp (SInt x)
-> seval (EBool b)         = Exp (SBool b)
-> seval (EIf e1 e2 e3)    = propagate (seval e1) (seval e2) (seval e3) -- loses sharing!!
-> seval (EAdd e1 e2)      = merge (SAdd,ADD) (seval e1) (seval e2) -- loses sharing!!
-> seval (EMul e1 e2)      = merge (SMul,MUL) (seval e1) (seval e2) -- loses sharing!!
-> seval (EEq e1 e2)       = merge (SEq,EQ)  (seval e1) (seval e2) -- loses sharing!!
-> seval (ELt e1 e2)       = merge (SLt,LT)  (seval e1) (seval e2)
-> seval (ELam f)          = Exp (SFun (seval . f))
-> seval (ELet f g)        = let v = seval (f v) in seval (g v)
-> seval (EApp e1 e2)      = treeApply (seval e1) (seval e2)
+> seval (EFVar x)          = Exp (SFVar x)
+> seval (EBVar e)          = e
+> seval (EInt x)           = Exp (SInt x)
+> seval (EBool b)          = Exp (SBool b)
+> seval (EIf e1 e2 e3)     = propagate (seval e1) (seval e2) (seval e3) -- loses sharing!!
+> seval (EAdd e1 e2)       = merge (SAdd,ADD) (seval e1) (seval e2) -- loses sharing!!
+> seval (EMul e1 e2)       = merge (SMul,MUL) (seval e1) (seval e2) -- loses sharing!!
+> seval (EEq e1 e2)        = merge (SEq,EQ)  (seval e1) (seval e2) -- loses sharing!!
+> seval (ELt e1 e2)        = merge (SLt,LT)  (seval e1) (seval e2)
+> seval (ELam f)           = Exp (SFun (seval . f))
+> seval (ELet f g)         = let v = seval (f v) in seval (g v)
+> seval (EApp e1 e2)       = treeApply (seval e1) (seval e2)
+> -- new cases for constructors and case analysis
+> seval (ECon s xs)        = mergeList (SCon s) (map seval xs)
+> seval (ECase e clauses)  = undefined 
+
+> {-
+> eval (ECon s xs)        = VCon s (map eval xs)
+> eval (ECase e clauses)  = 
+>  case eval e of
+>     VCon s vs -> eval (fromJust (lookup s clauses) vs)
+> -}
+
+> propagate (Exp e) et1 et2 = Fork e et1 et2
+> propagate (Fork e l r) et1 et2 = Fork e (propagate l et1 et2) (propagate r et1 et2)
+
+TODO: Improve code here
+ 1) Should be possible to use 1 definition for merge instead of "mergeList" and "merge"
+    (Also mergeList need to do partial-evaluation as merge)
+ 2) Deal with operators in a better way
+
+> mergeList f []                    = Exp (f [])
+> mergeList f (Exp e : xs)          = mergeList (\es -> f (e:es)) xs
+> mergeList f (Fork e1 e2 e3 : xs)  = 
+>   Fork e1 (mergeList f (e2:xs)) (mergeList f (e3:xs))
 >
+> merge (_,MUL) (Exp (SInt x)) (Exp (SInt y)) = Exp (SInt (x*y)) -- partial evaluation
+> merge (_,MUL) (Exp (SInt 1)) e = e
+> merge (_,MUL) e (Exp (SInt 1)) = e
+> merge (_,MUL) (Exp (SInt 0)) e = Exp (SInt 0)
+> merge (_,MUL) e (Exp (SInt 0)) = Exp (SInt 0)
+> merge (_,ADD) (Exp (SInt x)) (Exp (SInt y)) = Exp (SInt (x+y))
+> merge (_,EQ) (Exp (SInt x)) (Exp (SInt y)) = Exp (SBool (x==y))
+> merge (_,EQ) (Exp (SBool x)) (Exp (SBool y)) = Exp (SBool (x==y))
+> merge (_,LT) (Exp (SInt x)) (Exp (SInt y)) = Exp (SBool (x<y))
+> merge f (Exp e1) (Exp e2) = Exp (fst f e1 e2)
+> merge f (Fork e1 e2 e3) t = Fork e1 (merge f e2 t) (merge f e3 t)
+> merge f t (Fork e1 e2 e3) = Fork e1 (merge f t e2) (merge f t e3) 
+
+
 > treeApply (Exp (SFVar x)) t = apply (SApp (SFVar x)) t  -- f e
 > treeApply (Exp (SFun f)) t  = f t                       -- (\x . e1) e2
 > treeApply (Fork e1 e2 e3) t = Fork e1 (treeApply e2 t) (treeApply e3 t)
@@ -137,22 +173,6 @@ Applies program to symbolic variables
 > ppSymValue (SLt v1 v2)   = "(" ++ ppSymValue v1 ++ " < " ++ ppSymValue v2 ++ ")"
 > ppSymValue (SApp v1 v2)  = ppSymValue v1 ++ " " ++ ppSymValue v2
 > ppSymValue (SFun f)      = "<<function>>"
-
-> propagate (Exp e) et1 et2 = Fork e et1 et2
-> propagate (Fork e l r) et1 et2 = Fork e (propagate l et1 et2) (propagate r et1 et2)
->
-> merge (_,MUL) (Exp (SInt x)) (Exp (SInt y)) = Exp (SInt (x*y)) -- partial evaluation
-> merge (_,MUL) (Exp (SInt 1)) e = e
-> merge (_,MUL) e (Exp (SInt 1)) = e
-> merge (_,MUL) (Exp (SInt 0)) e = Exp (SInt 0)
-> merge (_,MUL) e (Exp (SInt 0)) = Exp (SInt 0)
-> merge (_,ADD) (Exp (SInt x)) (Exp (SInt y)) = Exp (SInt (x+y))
-> merge (_,EQ) (Exp (SInt x)) (Exp (SInt y)) = Exp (SBool (x==y))
-> merge (_,EQ) (Exp (SBool x)) (Exp (SBool y)) = Exp (SBool (x==y))
-> merge (_,LT) (Exp (SInt x)) (Exp (SInt y)) = Exp (SBool (x<y))
-> merge f (Exp e1) (Exp e2) = Exp (fst f e1 e2)
-> merge f (Fork e1 e2 e3) t = Fork e1 (merge f e2 t) (merge f e3 t)
-> merge f t (Fork e1 e2 e3) = Fork e1 (merge f t e2) (merge f t e3) 
 
 > instance Show Value where
 >   show (VFun _) = "<<function>>"
