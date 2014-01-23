@@ -7,6 +7,13 @@ Using PHOAS to represent variable binding
 
 Need to represent primitives in a better way?
 
+> -- Empty type for saying 'no free variables'
+> data Void
+
+> -- We need the type of types!
+> data PType = TInt | TBool | PType :-> PType
+>   deriving (Show, Eq)
+
 > data PExp a b =
 >     EFVar b 
 >   | EBVar a
@@ -18,7 +25,7 @@ Need to represent primitives in a better way?
 >   | EAdd (PExp a b) (PExp a b)
 >   | EMul (PExp a b) (PExp a b)
 >   | ELet (a -> PExp a b) (a -> PExp a b)
->   | ELam (a -> PExp a b)
+>   | ELam (a -> PExp a b) PType
 >   | EApp (PExp a b) (PExp a b)
 >   -- Adding case analysis and constructors
 >   | ECon String [PExp a b]                -- constructor
@@ -36,7 +43,7 @@ Standard (big-step) interpreter
 
 > data Value = VInt Int | VBool Bool | VFun (Value -> Value) | VCon String [Value]
 >
-> eval :: PExp Value () -> Value
+> eval :: PExp Value Void -> Value
 > eval (EFVar _)       = error "ops! Free variable"
 > eval (EBVar v)       = v
 > eval (EInt x)        = VInt x
@@ -58,7 +65,7 @@ Standard (big-step) interpreter
 >  case (eval e1, eval e2) of 
 >     (VInt v1, VInt v2) -> VInt (v1 * v2)
 > eval (ELet f g)      = let v = eval (f v) in eval (g v) 
-> eval (ELam f)           = VFun (eval . f)
+> eval (ELam f _)         = VFun (eval . f)
 > eval (EApp e1 e2)       = 
 >  case (eval e1) of
 >     VFun f -> f (eval e2)
@@ -70,7 +77,7 @@ Standard (big-step) interpreter
 Symbolic interpreter
 
 > data SymValue = 
->     SFVar Int -- free variables 
+>     SFVar Int PType -- free variables 
 >   | SInt Int 
 >   | SBool Bool 
 >   | SEq SymValue SymValue
@@ -79,7 +86,7 @@ Symbolic interpreter
 >   | SMul SymValue SymValue
 >   | SApp SymValue SymValue
 >   | SCon String [SymValue]
->   | SFun (ExecutionTree -> ExecutionTree) -- just store the function
+>   | SFun (ExecutionTree -> ExecutionTree) PType -- just store the function
 >
 > data ExecutionTree = Exp SymValue | Fork SymValue (ExecutionTree) (ExecutionTree) 
 
@@ -91,11 +98,11 @@ Applies program to symbolic variables
 > exec e = exec' e 0
 >
 > exec' :: ExecutionTree -> Int -> ExecutionTree
-> exec' (Exp (SFun f)) n = exec' (f (Exp (SFVar n))) (n+1)
-> exec' e              n = e
+> exec' (Exp (SFun f t)) n = exec' (f (Exp (SFVar n t))) (n+1)
+> exec' e                n = e
 
-> seval :: PExp ExecutionTree Int -> ExecutionTree
-> seval (EFVar x)          = Exp (SFVar x)
+> seval :: PExp ExecutionTree Void -> ExecutionTree
+> --seval (EFVar x)          = Exp (SFVar x)
 > seval (EBVar e)          = e
 > seval (EInt x)           = Exp (SInt x)
 > seval (EBool b)          = Exp (SBool b)
@@ -104,7 +111,7 @@ Applies program to symbolic variables
 > seval (EMul e1 e2)       = merge (SMul,MUL) (seval e1) (seval e2) -- loses sharing!!
 > seval (EEq e1 e2)        = merge (SEq,EQ)  (seval e1) (seval e2) -- loses sharing!!
 > seval (ELt e1 e2)        = merge (SLt,LT)  (seval e1) (seval e2)
-> seval (ELam f)           = Exp (SFun (seval . f))
+> seval (ELam f t)         = Exp (SFun (seval . f) t)
 > seval (ELet f g)         = let v = seval (f v) in seval (g v)
 > seval (EApp e1 e2)       = treeApply (seval e1) (seval e2)
 > -- new cases for constructors and case analysis
@@ -145,9 +152,9 @@ TODO: Improve code here
 > merge f t (Fork e1 e2 e3) = Fork e1 (merge f t e2) (merge f t e3) 
 
 
-> treeApply (Exp (SFVar x)) t = apply (SApp (SFVar x)) t  -- f e
-> treeApply (Exp (SFun f)) t  = f t                       -- (\x . e1) e2
-> treeApply (Fork e1 e2 e3) t = Fork e1 (treeApply e2 t) (treeApply e3 t)
+> treeApply (Exp (SFVar x pt)) t = apply (SApp (SFVar x pt)) t  -- f e
+> treeApply (Exp (SFun f pt))  t = f t                       -- (\x . e1) e2
+> treeApply (Fork e1 e2 e3)    t = Fork e1 (treeApply e2 t) (treeApply e3 t)
 >
 > apply f (Exp e)          = Exp (f e) 
 > apply f (Fork e1 e2 e3)  = Fork e1 (apply f e2) (apply f e3)
@@ -164,7 +171,7 @@ TODO: Improve code here
 > pp e = fst $ pp' e "True" 5 -- stop after 5 results
 
 > ppSymValue :: SymValue -> String
-> ppSymValue (SFVar n)     = "x" ++ show n
+> ppSymValue (SFVar n pt)   = "x" ++ show n
 > ppSymValue (SInt i)      = show i
 > ppSymValue (SBool b)     = show b
 > ppSymValue (SEq v1 v2)   = "(" ++ ppSymValue v1 ++ " == " ++ ppSymValue v2 ++ ")"
@@ -172,15 +179,16 @@ TODO: Improve code here
 > ppSymValue (SMul v1 v2)  = "(" ++ ppSymValue v1 ++ " * " ++ ppSymValue v2 ++ ")"
 > ppSymValue (SLt v1 v2)   = "(" ++ ppSymValue v1 ++ " < " ++ ppSymValue v2 ++ ")"
 > ppSymValue (SApp v1 v2)  = ppSymValue v1 ++ " " ++ ppSymValue v2
-> ppSymValue (SFun f)      = "<<function>>"
+> ppSymValue (SFun f _)    = "<<function>>"
 
 > instance Show Value where
->   show (VFun _) = "<<function>>"
->   show (VInt x) = show x
->   show (VBool b) = show b
+>   show (VFun _)   = "<<function>>"
+>   show (VInt x)   = show x
+>   show (VBool b)  = show b
 
+> nLam b = ELam b TInt
 
-> fact = ELet (\fact -> ELam (\n ->
+> fact = ELet (\fact -> nLam (\n ->
 >   EIf (ELt (EBVar n) (EInt 1))
 >       (EInt 1)
 >       (EMul (EBVar n) (EApp (EBVar fact) (EAdd (EBVar n) (EInt (-1))))))) EBVar
@@ -189,17 +197,17 @@ TODO: Improve code here
 >   ECase (EBVar l) [
 >     ("Nil", \_ -> EInt 0),
 >     ("Cons", \(x:xs:[]) -> EAdd (EBVar x) (EApp (EBVar sumList) (EBVar xs)))
->   ])) EBVar
+>   ]) (error "We have no suitable type yet:)")) EBVar
 
-> isPositive = ELam (\n -> ELt (EInt 0) (EBVar n))
+> isPositive = nLam (\n -> ELt (EInt 0) (EBVar n))
 
-> p1 = ELam (\n -> EIf (ELt (EBVar n) (EInt 10)) (EInt (-1)) (EInt 1))
+> p1 = nLam (\n -> EIf (ELt (EBVar n) (EInt 10)) (EInt (-1)) (EInt 1))
 >
-> p2 = ELam (\n -> EIf (ELt (EBVar n) (EInt 5)) (EInt (-1)) (EInt 1))
+> p2 = nLam (\n -> EIf (ELt (EBVar n) (EInt 5)) (EInt (-1)) (EInt 1))
 >
-> prop_p1_p2 = ELam (\n -> EEq (EApp p1 (EBVar n)) (EApp p2 (EBVar n))) 
+> prop_p1_p2 = nLam (\n -> EEq (EApp p1 (EBVar n)) (EApp p2 (EBVar n))) 
 
-> prop_fact = ELam (\n -> EApp isPositive (EApp fact (EBVar n))) 
+> prop_fact = nLam (\n -> EApp isPositive (EApp fact (EBVar n))) 
 
 > t = eval (EApp fact (EInt 10))
 
