@@ -2,6 +2,8 @@
 
 > import Prelude hiding (EQ,LT)
 > import Data.Maybe
+> import Data.IntMap (IntMap)
+> import qualified Data.IntMap as IM
 
 Using PHOAS to represent variable binding
 
@@ -11,7 +13,9 @@ Need to represent primitives in a better way?
 > data Void
 
 > -- We need the type of types!
-> data PType = TInt | TBool | PType :-> PType
+> data AType = TInt | TBool
+>   deriving (Show, Eq)
+> data PType = TAtom AType | AType :-> PType
 >   deriving (Show, Eq)
 
 > data PExp a b =
@@ -88,6 +92,7 @@ Symbolic interpreter
 >   | SCon String [SymValue]
 >   | SFun (ExecutionTree -> ExecutionTree) PType -- just store the function
 >
+> -- Add Declare constructor?
 > data ExecutionTree = Exp SymValue | Fork SymValue (ExecutionTree) (ExecutionTree) 
 
 > data Op = ADD | MUL | LT | EQ
@@ -170,8 +175,47 @@ TODO: Improve code here
 
 > pp e = fst $ pp' e "True" 5 -- stop after 5 results
 
+> ppz3' :: ExecutionTree -> String -> IntMap PType -> Int -> [String]
+> ppz3' _       s vars 0    = []
+> ppz3' (Exp e) s vars stop = [s ++ "\n(check-sat)\n" ++ simplify e ++ "\n(pop)"]
+> ppz3' (Fork e1 e2 e3) s vars stop = 
+>  let v1 = freeSVars e1
+>      undeclared = v1 `IM.difference` vars
+>      newdecls   = unlines $ map declare $ IM.assocs undeclared
+>      vars'      = vars `IM.union` undeclared
+>      s' = s ++ "\n" ++ newdecls
+>      s2 = ppz3' e2 (s' ++ assert e1)    vars' (stop - 1)
+>      s3 = ppz3' e3 (s' ++ assertNeg e1) vars' (stop - 1)
+>  in s2 ++ s3
+
+> declare :: (Int, PType) -> String
+> declare (n, TAtom TInt) = "(declare-const " ++ ppSVar n ++ " Int)"
+
+> assert, assertNeg :: SymValue -> String
+> assert e    = "(assert "      ++ ppFPNSymValue e ++ ")"
+> assertNeg e = "(assert (not " ++ ppFPNSymValue e ++ "))"
+> simplify :: SymValue -> String
+> simplify e  = "(simplify "    ++ ppFPNSymValue e ++ ")"
+
+> -- Get all SFVars that are mentioned in a symbolic expression and their types
+> -- to make sure that they are declared before first use.
+> freeSVars :: SymValue -> IntMap PType
+> freeSVars (SFVar n pt)  = IM.singleton n pt
+> --freeSVars (SInt i)      = IM.empty
+> --freeSVars (SBool b)     = IM.empty
+> freeSVars (SEq v1 v2)   = freeSVars v1 `IM.union` freeSVars v2
+> freeSVars (SAdd v1 v2)  = freeSVars v1 `IM.union` freeSVars v2
+> freeSVars (SMul v1 v2)  = freeSVars v1 `IM.union` freeSVars v2
+> freeSVars (SLt v1 v2)   = freeSVars v1 `IM.union` freeSVars v2
+> freeSVars (SApp v1 v2)  = freeSVars v1 `IM.union` freeSVars v2
+> --freeSVars (SFun f _)    = "<<function>>"
+> freeSVars _             = IM.empty
+
+> ppSVar :: Int -> String
+> ppSVar n = "x" ++ show n
+
 > ppSymValue :: SymValue -> String
-> ppSymValue (SFVar n pt)   = "x" ++ show n
+> ppSymValue (SFVar n pt)  = ppSVar n
 > ppSymValue (SInt i)      = show i
 > ppSymValue (SBool b)     = show b
 > ppSymValue (SEq v1 v2)   = "(" ++ ppSymValue v1 ++ " == " ++ ppSymValue v2 ++ ")"
@@ -181,12 +225,24 @@ TODO: Improve code here
 > ppSymValue (SApp v1 v2)  = ppSymValue v1 ++ " " ++ ppSymValue v2
 > ppSymValue (SFun f _)    = "<<function>>"
 
+> ppFPNSymValue :: SymValue -> String
+> ppFPNSymValue (SFVar n pt)  = ppSVar n
+> ppFPNSymValue (SInt i)      = show i
+> ppFPNSymValue (SBool True)  = "true"
+> ppFPNSymValue (SBool False) = "false"
+> ppFPNSymValue (SEq v1 v2)   = "(= " ++ ppFPNSymValue v1 ++ " " ++ ppFPNSymValue v2 ++ ")"
+> ppFPNSymValue (SAdd v1 v2)  = "(+ " ++ ppFPNSymValue v1 ++ " " ++ ppFPNSymValue v2 ++ ")"
+> ppFPNSymValue (SMul v1 v2)  = "(* " ++ ppFPNSymValue v1 ++ " " ++ ppFPNSymValue v2 ++ ")"
+> ppFPNSymValue (SLt v1 v2)   = "(< " ++ ppFPNSymValue v1 ++ " " ++ ppFPNSymValue v2 ++ ")"
+> ppFPNSymValue (SApp v1 v2)  = "("   ++ ppFPNSymValue v1 ++ " " ++ ppFPNSymValue v2 ++ ")"
+> ppFPNSymValue (SFun f _)    = error "ppFPNSymValue of SFun"
+
 > instance Show Value where
 >   show (VFun _)   = "<<function>>"
 >   show (VInt x)   = show x
 >   show (VBool b)  = show b
 
-> nLam b = ELam b TInt
+> nLam b = ELam b (TAtom TInt)
 
 > fact = ELet (\fact -> nLam (\n ->
 >   EIf (ELt (EBVar n) (EInt 1))
@@ -220,3 +276,6 @@ TODO: Improve code here
 > toIntList = toList EInt
 
 > fun e = putStrLn (pp (exec (seval e)))
+> -- This produces a z3 output, but (push) and (pop) don't seem to work,
+> -- so pasting individual cases is the way to go for now.
+> fun' e = mapM_ putStrLn $ (ppz3' (exec (seval e)) "(push)" IM.empty 6)
