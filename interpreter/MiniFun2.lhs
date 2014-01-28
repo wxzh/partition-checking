@@ -30,7 +30,7 @@ Need to represent primitives in a better way?
 >   | EApp (PExp a b) (PExp a b)
 >   -- Adding case analysis and constructors
 >   | ECon String [PExp a b]                -- constructor
->   | ECase (PExp a b) [(String, [a] -> PExp a b)]     -- case expression
+>   | ECase (PExp a b) [((String,Int), [a] -> PExp a b)]     -- case expression
 
 ECon String (PExp a b)
 
@@ -69,7 +69,7 @@ Standard (big-step) interpreter
 > eval (ECon s xs)        = VCon s (map eval xs)
 > eval (ECase e clauses)       =
 >  case eval e of
->     VCon s vs -> eval (fromJust (lookup s clauses) vs)
+>     VCon s vs -> eval (fromJust (lookup (s,length vs) clauses) vs)
 
 Symbolic interpreter
 
@@ -84,26 +84,26 @@ Symbolic interpreter
 >   | SCon String [SymValue]
 >   | SFun (ExecutionTree -> ExecutionTree) PType -- just store the function
 
-> type Pattern = (String, [Int])
+> type Pattern = ((String,Int), [Int])
 
 > pname :: Pattern -> String
-> pname = fst
+> pname = fst . fst
 >
 > pargs :: Pattern -> [Int]
 > pargs = snd
 
-> data ExecutionTree = Exp SymValue | Fork SymValue [(String, [ExecutionTree] -> ExecutionTree)]
+> data ExecutionTree = Exp SymValue | Fork SymValue [((String,Int), [ExecutionTree] -> ExecutionTree)]
 
 > data Op = ADD | MUL | LT | EQ
 
 Applies program to symbolic variables
 
-> exec :: ExecutionTree -> ExecutionTree
+> exec :: ExecutionTree -> (ExecutionTree, Int)
 > exec e = exec' e 0
 >
-> exec' :: ExecutionTree -> Int -> ExecutionTree
+> exec' :: ExecutionTree -> Int -> (ExecutionTree, Int)
 > exec' (Exp (SFun f t)) n = exec' (f (Exp (SFVar n t))) (n+1)
-> exec' e                n = e
+> exec' e                n = (e,n)
 
 > seval :: PExp ExecutionTree Void -> ExecutionTree
 > --seval (EFVar x)          = Exp (SFVar x)
@@ -145,6 +145,8 @@ TODO: Improve code here
 > merge f (Exp e1) (Exp e2) = Exp (fst f e1 e2)
 > merge f (Fork e es) t = Fork e [(s, \l -> merge f (v l) t) | (s,v) <- es] -- (merge f e2 t) (merge f e3 t)
 > merge f t (Fork e es) = Fork e [(s, \l -> merge f (v l) t) | (s,v) <- es] -- (merge f t e2) (merge f t e3) 
+
+Merge is too eager? 
 
 > treeApply (Exp (SFVar x pt)) t = apply (SApp (SFVar x pt)) t  -- f e
 > treeApply (Exp (SFun f pt))  t = f t                       -- (\x . e1) e2
@@ -228,18 +230,21 @@ Substitution of free variables in ExecutionTree
 > pp' (Exp e) s stop n = (s ++ " ==> " ++ ppSymValue e n ++ "\n", stop - 1)
 > pp' (Fork e1 [(c2,e2),(c3,e3)]) s stop n = -- fix me! generalize to arbitrary size list
 >  let s1         = ppSymValue e1 n
->      (s2,stop2) = pp' (e2 (fresh n)) (s ++ " && " ++ s1 ++ " = " ++ c2) stop n
->      (s3,stop3) = pp' (e3 (fresh n)) (s ++ " && " ++ s1 ++ " = " ++ c3) stop2 n
+>      (s2,stop2) = pp' (e2 (fresh n)) (s ++ " && " ++ s1 ++ " = " ++ fst c2 ++ " " ++  genVars (snd c2) n) stop (n + snd c2)
+>      (s3,stop3) = pp' (e3 (fresh n)) (s ++ " && " ++ s1 ++ " = " ++ fst c3 ++ " " ++ genVars (snd c3) n) stop2 (n + snd c3)
 >  in (s2 ++ s3,stop3)
+
+> genVars 0 i = ""
+> genVars n i = "x" ++ show i ++ " " ++ genVars (n-1) (i+1)
 
 > fresh n = map (\n -> Exp (SFVar n TInt)) (iterate (+1) n)
 
-> pp e = fst $ pp' e "True" 5 0 -- stop after 5 results
+> pp (e,n) = fst $ pp' e "True" 5 n -- stop after 5 results
 
 > ppSymValue :: SymValue -> Int -> String
 > ppSymValue (SFVar n pt) _   = "x" ++ show n
 > ppSymValue (SInt i)     n  = show i
-> ppSymValue (SCon s _)     n  = s
+> ppSymValue (SCon s vs)  n  = s ++ " " ++ concatMap (\v -> "(" ++ ppSymValue v n ++ ") ") vs 
 > ppSymValue (SEq v1 v2)  n  = "(" ++ ppSymValue v1 n ++ " == " ++ ppSymValue v2 n ++ ")"
 > ppSymValue (SAdd v1 v2) n  = "(" ++ ppSymValue v1 n ++ " + " ++ ppSymValue v2 n ++ ")"
 > ppSymValue (SMul v1 v2) n  = "(" ++ ppSymValue v1 n ++ " * " ++ ppSymValue v2 n ++ ")"
@@ -255,7 +260,7 @@ Substitution of free variables in ExecutionTree
 
 > nLam b = ELam b TInt
 
-> eIf e1 e2 e3 = ECase e1 [("True",\_ -> e2),("False",\_ -> e3)]
+> eIf e1 e2 e3 = ECase e1 [(("True",0),\_ -> e2),(("False",0),\_ -> e3)]
 
 > fact = ELet (\fact -> nLam (\n ->
 >   eIf (ELt (EBVar n) (EInt 1))
@@ -264,9 +269,15 @@ Substitution of free variables in ExecutionTree
 
 > sumList = ELet (\sumList -> ELam (\l -> 
 >   ECase (EBVar l) [
->     ("Nil", \_ -> EInt 0),
->     ("Cons", \(x:xs:_) -> EAdd (EBVar x) (EApp (EBVar sumList) (EBVar xs)))
+>     (("Nil",0), \_ -> EInt 0),
+>     (("Cons",2), \(x:xs:_) -> EAdd (EBVar x) (EApp (EBVar sumList) (EBVar xs)))
 >   ]) (error "We have no suitable type yet:)")) EBVar
+
+> mapList = ELet (\mapList -> ELam (\f -> ELam (\l -> 
+>   ECase (EBVar l) [
+>     (("Nil",0), \_ -> ECon "Nil" []),
+>     (("Cons",2), \(x:xs:_) -> ECon "Cons" [EApp (EBVar f) (EBVar x), EApp (EApp (EBVar mapList) (EBVar f)) (EBVar xs)])
+>   ]) (error "We have no suitable type yet:)")) (error "We have no suitable type yet:)")) EBVar
 
 > isPositive = nLam (\n -> ELt (EInt 0) (EBVar n))
 
@@ -278,7 +289,19 @@ Substitution of free variables in ExecutionTree
 
 > prop_fact = nLam (\n -> EApp isPositive (EApp fact (EBVar n))) 
 
+> prop_map_fusion = ELam (\f -> ELam (\g -> ELam (\xs -> 
+>   EEq (EApp (EApp mapList (EBVar f)) (EApp (EApp mapList (EBVar g)) (EBVar xs)))
+>       (EApp (EApp mapList (ELam (\x -> EApp (EBVar f) (EApp (EBVar g) (EBVar x))) undefined)) (EBVar xs))) (error "ops!")) (error "ops!")) (error "ops!")
+
 > t = eval (EApp fact (EInt 10))
+
+> p3 = ELam (\e -> 
+>   ECase (EBVar e) [
+>     (("True",0), \_ -> EInt 0),
+>     (("False",0), \_ -> EInt 1)
+>   ]) undefined
+
+> prop_p3 = ELam (\e -> EEq (EApp p3 (EBVar e)) (EApp p3 (EBVar e))) undefined -- does not work well!
 
 > t1 = eval (EApp sumList (toIntList [1..100]))
 
