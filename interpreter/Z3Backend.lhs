@@ -23,7 +23,7 @@
 >  newdecls <- mapM (declareVar intSort) $ IM.assocs undeclared
 >  let vars'      = vars `IM.union` IM.fromList newdecls
 >  --    s' = s ++ "\n" ++ newdecls
->  ast <- symValueZ3 vars e1
+>  ast <- symValueZ3 vars' e1
 >  push
 >  assertCnstr ast
 >  b1 <- fmap resToBool check 
@@ -62,11 +62,19 @@
 > --symValueZ3 (SEq v1 v2)   = "(= " ++ symValueZ3 v1 ++ " " ++ symValueZ3 v2 ++ ")"
 > --symValueZ3 (SAdd v1 v2)  = "(+ " ++ symValueZ3 v1 ++ " " ++ symValueZ3 v2 ++ ")"
 > --symValueZ3 (SMul v1 v2)  = "(* " ++ symValueZ3 v1 ++ " " ++ symValueZ3 v2 ++ ")"
-> go (SLt v1 v2)   = do
->   x1 <- go v1
->   x2 <- go v2
->   mkLt x1 x2
+>  go (SLt v1 v2)   = do
+>    x1 <- go v1
+>    x2 <- go v2
+>    mkLt x1 x2
+>  go (SAdd v1 v2)  = do
+>    x1 <- go v1
+>    x2 <- go v2
+>    mkAdd [x1, x2]
+>  go (SMul v1 v2)  = do
+>    x1 <- go v1
+>    x2 <- go v2
+>    mkMul [x1, x2]
 > --symValueZ3 vars (SApp v1 v2)  = "("   ++ symValueZ3 v1 ++ " " ++ symValueZ3 v2 ++ ")"
-> go (SFun f _)    = error "symValueZ3 of SFun"
+>  go (SFun f _)    = error "symValueZ3 of SFun"
 
 
