@@ -37,6 +37,8 @@ Some abstract ...
 > import Test.QuickCheck
 > import Data.List
 
+\section{Correctness}
+\include{correctness} \label{sec:correctness}
 
 reverse
 
@@ -228,6 +230,7 @@ monomorphic type is sufficient or not.
 <   ==  
 <       True
 
+ 
 \section{Related Work}\label{sec:related}
 %include RelatedWork.lhs
 
