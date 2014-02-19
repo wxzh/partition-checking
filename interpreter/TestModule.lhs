@@ -7,7 +7,7 @@
 
 "Export list"
 
-> ((fact,pr2,prop_map_fusion),types1) = runNames module1
+> ((fact,prop_p3,prop_map_fusion),types1) = runNames module1
 > module1 = do
 
 Prelude, where types are defined
@@ -36,10 +36,10 @@ Other functions
 >       cases (var e) [
 >         (cTrue, \_ -> EInt 0),
 >         (cFalse, \_ -> EInt 1)
->         ]) undefined
+>         ]) tBool
 >     prog3 = undefined
 
->     prop_p3 = ELam (\e -> EEq (EApp p3 (var e)) (EApp p3 (var e))) undefined -- does not work well!
+>     prop_p3 = ELam (\e -> EEq (EApp p3 (var e)) (EApp p3 (var e))) tBool
 
 >     isPositive = nLam (\n -> ELt (EInt 0) (var n))
 
@@ -79,7 +79,7 @@ These functions have not yet been rewritten to the new format.
 
 Export list is duplicated here.
 
->   return (fact,prop_fact,prop_map_fusion)
+>   return (fact,prop_p3,prop_map_fusion)
 
 
 > testFact = eval (EApp fact (EInt 10))

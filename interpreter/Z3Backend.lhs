@@ -80,6 +80,13 @@
 >   x <- mkIntSymbol n
 >   c <- mkConst x intSort
 >   return (n, c)
+> declareVar intSort (n,t) | isBoolType t = do
+>   x  <- mkIntSymbol n
+>   bs <- mkBoolSort
+>   c  <- mkConst x bs
+>   return (n,c)
+> declareVar intSort (n,t) = error $ "declareVar, unsupported type: " ++ show t
+
 
 > symValueZ3 :: IntMap AST -> SymValue -> Z3 AST
 > symValueZ3 vars sv = go sv where
