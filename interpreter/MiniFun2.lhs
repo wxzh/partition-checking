@@ -6,6 +6,7 @@
 > import Data.Maybe
 > import Control.Monad.State
 > import DataTypes
+> import Control.Monad
 
 Using PHOAS to represent variable binding
 
@@ -28,7 +29,13 @@ Need to represent primitives in a better way?
 >   | EApp (PExp a b) (PExp a b)
 >   -- Adding case analysis and constructors
 >   | ECon Constructor [PExp a b]                -- constructor
->   | ECase (PExp a b) [(Constructor, [a] -> PExp a b)]     -- case expression
+>   | ECase DataType (PExp a b) [(Constructor, [a] -> PExp a b)] (Maybe (PExp a b))     -- case expression
+
+          ECase t e [c,e1] (Just e2) 
+          ~ 
+          case e :: t of 
+            c a b -> e1 a b
+            _     -> e2
 
 Some convenient functions and instances for writing expressions.
 
@@ -50,13 +57,16 @@ Some convenient functions and instances for writing expressions.
 > infix 4 *<
 > infixr 0 *\
 
-ECon String (PExp a b)
+Default case expressions, infers the type from the constructors matched.
 
-ECase [Pat a b]
-
-eval 
-
-EPat String ([a] -> PExp a b)
+> cases :: PExp a b -> [(Constructor, [a] -> PExp a b)] -> PExp a b
+> cases e alts = caseInf e alts Nothing
+>
+> casesW :: PExp a b -> [(Constructor, [a] -> PExp a b)] -> PExp a b -> PExp a b
+> casesW e alts w = caseInf e alts (Just w) 
+> 
+> caseInf e alts@((c,_):_) wild = ECase (conType c) e alts wild
+> caseInf _ [] _                = error "caseInf: empty case" -- Should be translated into "EError" or such?
 
 Standard (big-step) interpreter
 
@@ -85,9 +95,10 @@ Standard (big-step) interpreter
 >  case (eval e1) of
 >     VFun f -> f (eval e2)
 > eval (ECon s xs)             = VCon s (map eval xs)
-> eval (ECase e clauses)       =
+> eval (ECase t e clauses wild)       =
 >  case eval e of
->     VCon s vs -> eval (fromJust (lookup s clauses) vs)
+>     VCon s vs -> eval $ fromJust (fmap ($vs) (lookup s clauses) `mplus` wild)
+>     -- VInt ...
 
 Symbolic interpreter
 
@@ -111,7 +122,7 @@ Symbolic interpreter
 > pargs = snd
 
 > data ExecutionTree = Exp SymValue 
->                    | Fork SymValue [(Constructor, [ExecutionTree] -> ExecutionTree)]
+>                    | Fork DataType SymValue [(Constructor, [ExecutionTree] -> ExecutionTree)] (Maybe ExecutionTree)
 >                    | NewSymVar Int DataType ExecutionTree -- Not fully implemented yet...
 
 > data Op = ADD | MUL | LT | EQ
@@ -122,7 +133,8 @@ Applies program to symbolic variables
 > exec e = exec' e 0
 >
 > exec' :: ExecutionTree -> Int -> (ExecutionTree, Int)
-> exec' (Exp (SFun f t)) n = exec' (f (Exp (SFVar n t))) (n+1) -- TODO: Add NewSymVar here
+> exec' (Exp (SFun f t)) n = case (exec' (f (Exp (SFVar n t))) (n+1)) of
+>   (e,n') -> (NewSymVar n t e,n')
 > exec' e                n = (e,n)
 
 > seval :: PExp ExecutionTree Void -> ExecutionTree
@@ -137,12 +149,13 @@ Applies program to symbolic variables
 > seval (ELet f g)         = let v = seval (f v) in seval (g v)
 > seval (EApp e1 e2)       = treeApply (seval e1) (seval e2)
 > seval (ECon s xs)        = mergeList (SCon s) (map seval xs)
-> seval (ECase e clauses)  = propagate (seval e) (map (\(s,c) -> (s, seval . c)) clauses)
+> seval (ECase t e clauses w)  = propagate t (seval e) (map (\(s,c) -> (s, seval . c)) clauses) (fmap seval w)
 
-
-> propagate (Exp e) es            = Fork e es 
-> propagate (Fork e es) es'       = Fork e [(s, \l -> propagate (f l) es') | (s,f) <- es]
-> propagate (NewSymVar n t e) es  = NewSymVar n t (propagate e es)
+> propagate :: DataType -> ExecutionTree -> [(Constructor, [ExecutionTree] -> ExecutionTree)] -> (Maybe ExecutionTree) -> ExecutionTree
+> propagate dt  (Exp e) es w              = Fork dt e es w 
+> propagate dt' (Fork dt e es w) es' w'   = Fork dt e [(s, \l -> propagate dt' (f l) es' w') | (s,f) <- es] 
+>                                                     (fmap (\we -> propagate dt' we es' w') w)
+> propagate dt (NewSymVar n t e) es w = NewSymVar n t (propagate dt e es w)
 
 TODO: Improve code here
  1) Should be possible to use 1 definition for merge instead of "mergeList" and "merge"
@@ -152,8 +165,9 @@ TODO: Improve code here
  
 > mergeList f []                    = Exp (f [])
 > mergeList f (Exp e : xs)          = mergeList (\es -> f (e:es)) xs
-> mergeList f (Fork e es : xs)  = 
->   Fork e [ (s, \l -> mergeList f (g l : xs)) | (s,g) <- es]
+> mergeList f (Fork dt e es w : xs)  = 
+>   Fork dt e [ (s, \l -> mergeList f (g l : xs)) | (s,g) <- es] (fmap (\we -> mergeList f (we:xs)) w)
+> mergeList f (NewSymVar n d e : xs) = NewSymVar n d (mergeList f (e:xs))
 >
 > merge (_,MUL) (Exp (SInt x)) (Exp (SInt y)) = Exp (SInt (x*y)) -- partial evaluation
 > merge (_,MUL) (Exp (SInt 1)) e = e
@@ -165,17 +179,23 @@ TODO: Improve code here
 > -- merge (_,EQ) (Exp (SBool x)) (Exp (SBool y)) = Exp (SBool (x==y))
 > merge (_,LT) (Exp (SInt x)) (Exp (SInt y)) = Exp (SCon (litBool $ (x < y)) [])
 > merge f (Exp e1) (Exp e2) = Exp (fst f e1 e2)
-> merge f (Fork e es) t = Fork e [(s, \l -> merge f (v l) t) | (s,v) <- es] -- (merge f e2 t) (merge f e3 t)
-> merge f t (Fork e es) = Fork e [(s, \l -> merge f (v l) t) | (s,v) <- es] -- (merge f t e2) (merge f t e3) 
+> merge f (Fork dt e es w) t = Fork dt e [(s, \l -> merge f (v l) t) | (s,v) <- es] (fmap (\we -> merge f we t) w) -- (merge f e2 t) (merge f e3 t)
+> merge f t (Fork dt e es w) = Fork dt e [(s, \l -> merge f t (v l)) | (s,v) <- es] (fmap (\we -> merge f t we) w) -- (merge f t e2) (merge f t e3) 
+>                                                                                     -- BUG? This was swapping the params of merge before.
+> merge f (NewSymVar n d e) t = NewSymVar n d (merge f e t)
+> merge f t (NewSymVar n d e) = NewSymVar n d (merge f t e) -- TODO: Not sure if this is correct, maybe the scope of the symVar is widened here?
 
 Merge is too eager? 
 
+
 > treeApply (Exp (SFVar x pt)) t = apply (SApp (SFVar x pt)) t  -- f e
 > treeApply (Exp (SFun f pt))  t = f t                       -- (\x . e1) e2
-> treeApply (Fork e es)    t = Fork e [(s, \l -> treeApply (v l) t) | (s,v) <- es] --(treeApply e2 t) (treeApply e3 t)
+> treeApply (Fork dt e es w)   t = Fork dt e [(s, \l -> treeApply (v l) t) | (s,v) <- es] (fmap (\we -> treeApply we t) w)
+> treeApply (NewSymVar n d e)  t = NewSymVar n d (treeApply e t)
 >
-> apply f (Exp e)      = Exp (f e) 
-> apply f (Fork e es)  = Fork e [(s, apply f . v) | (s,v) <- es] -- (apply f e2) (apply f e3)
+> apply f (Exp e)              = Exp (f e) 
+> apply f (Fork t e es w)      = Fork t e [(s, apply f . v) | (s,v) <- es] (fmap (apply f) w) -- (apply f e2) (apply f e3)
+> apply f (NewSymVar n d e)    = NewSymVar n d (apply f e)
 
 > {-
 > seval1 :: PExp ExecutionTree Void -> Int -> State [Int] ExecutionTree
@@ -250,11 +270,13 @@ Substitution of free variables in ExecutionTree
 > pp' :: ExecutionTree -> String -> Int -> Int -> (String,Int)
 > pp' _ s 0 n = ("",0)
 > pp' (Exp e) s stop n = (s ++ " ==> " ++ ppSymValue e n ++ "\n", stop - 1)
-> pp' (Fork e1 [(c2,e2),(c3,e3)]) s stop n = -- fix me! generalize to arbitrary size list
+> pp' (Fork t e1 [(c2,e2),(c3,e3)] _) s stop n = -- fix me! generalize to arbitrary size list and wildcards
 >  let s1         = ppSymValue e1 n
 >      (s2,stop2) = pp' (e2 (fresh n)) (s ++ " && " ++ s1 ++ " = " ++ showConName c2 ++ " " ++  genVars (conArity c2) n) stop (n + conArity c2)
 >      (s3,stop3) = pp' (e3 (fresh n)) (s ++ " && " ++ s1 ++ " = " ++ showConName c3 ++ " " ++ genVars (conArity c3) n) stop2 (n + conArity c3)
 >  in (s2 ++ s3,stop3)
+> pp' (NewSymVar _ _ e) s m n = pp' e s m n
+
 
 > genVars 0 i = ""
 > genVars n i = "x" ++ show i ++ " " ++ genVars (n-1) (i+1)
@@ -273,6 +295,8 @@ Substitution of free variables in ExecutionTree
 > ppSymValue (SLt v1 v2)  n  = "(" ++ ppSymValue v1 n ++ " < " ++ ppSymValue v2 n ++ ")"
 > ppSymValue (SApp v1 v2) n  = ppSymValue v1 n ++ " " ++ ppSymValue v2 n
 > ppSymValue (SFun f t)   n  = "<<function>>" -- "(\\x" ++ show n ++ ". " ++ f (Exp (SFVar n t)) ++ ")" -- <<function>>"
+
+> ppSymValue' e = ppSymValue e undefined -- The int is not used?
 
 > instance Show Value where
 >   show (VFun _)   = "<<function>>"

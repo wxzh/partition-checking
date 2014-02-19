@@ -27,23 +27,42 @@ module1 = do
 
 
 type ID = Int
+
+idBool  = 0
+idInt   = 1
+idFalse = 2
+idTrue  = 3
+
 defSupply :: [ID]
 defSupply = [4..]
 
 
 idOf :: DataType -> ID
 idOf (DataType{dataId = did}) = did
-idOf DataInt                  = 0
-idOf DataBool                 = 1
+idOf DataBool                 = idBool
+idOf DataInt                  = idInt
+
 
 -- Globally available types, with special interpreter support
-tInt = DataInt
-tBool = DataBool
-cFalse = Constructor 2 "False" []
-cTrue = Constructor 3 "True" []
+tInt   = DataInt
+tBool  = DataBool
+
+cFalse = Constructor {conId = idFalse, conName = "False", conParams =  [], conType = tBool}
+cTrue  = Constructor {conId = idTrue,  conName = "True",  conParams =  [], conType = tBool}
+
+isIntType DataInt = True
+isIntType _       = False
+
+isBoolType DataBool = True
+isBoolType _        = False
 
 litBool b = if b then cTrue else cFalse
 litInt    = IntegerLit
+
+fromBool :: Constructor -> Bool
+fromBool Constructor{conId = cid} | cid == idFalse = False
+                                  | cid == idTrue  = True
+fromBool _                                         = error "fromBool, not a Boolean"
 
 -- | TODO: Type constructors, function types. String names.
 data DataType = DataType {dataId :: ID, dataCons :: [Constructor]} 
@@ -54,7 +73,7 @@ instance Eq DataType where
   a == b = idOf a == idOf b
 
 -- | TODO:(Optional) String names.
-data Constructor = Constructor {conId :: ID, conName :: String, conParams :: [DataType]}
+data Constructor = Constructor {conId :: ID, conName :: String, conParams :: [DataType], conType :: DataType}
                  | IntegerLit Integer
 instance Show Constructor where
   show c@Constructor{conParams = cps, conId = cid} = show $ (cid,map dataId cps)
@@ -83,7 +102,7 @@ newData cs = do
   dtName  <- newName
   csNames <- sequence (map (const newName) cs)
   
-  let cons = zipWith (uncurry . Constructor) csNames cs
+  let cons = zipWith (\cid (s,dts) -> Constructor{conId = cid, conName = s, conParams = dts, conType = dt}) csNames cs
       dt = DataType dtName cons
   regType dt
   return (dt, cons)

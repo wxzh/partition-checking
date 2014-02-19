@@ -3,6 +3,7 @@
 > module TestModule where
 > import MiniFun2
 > import DataTypes
+> import Z3Backend
 
 "Export list"
 
@@ -25,14 +26,14 @@ Prelude, where types are defined
 Core functions
 
 >   let
->     eIf e1 e2 e3 = ECase e1 [(cTrue,\_ -> e2),(cFalse,\_ -> e3)]
+>     eIf e1 e2 e3 = cases e1 [(cTrue,\_ -> e2),(cFalse,\_ -> e3)]
 
 Other functions
 
 >   let 
 >     t1    = EApp sumList (toIntList [1..100])
 >     p3 = ELam (\e -> 
->       ECase (var e) [
+>       cases (var e) [
 >         (cTrue, \_ -> EInt 0),
 >         (cFalse, \_ -> EInt 1)
 >         ]) undefined
@@ -59,7 +60,7 @@ Other functions
 
 
 >     sumList = ELet (\sumList -> tList *\ (\l -> 
->       ECase (var l) [
+>       cases (var l) [
 >         (nill, \_ -> 0),
 >         (cons, \(x:xs:_) -> var x + (var sumList *$ var xs))
 >       ])) var
@@ -71,7 +72,7 @@ These functions have not yet been rewritten to the new format.
 >           (EApp (EApp mapList (ELam (\x -> EApp (var f) (EApp (var g) (var x))) undefined)) (var xs))) (error "ops!")) (error "ops!")) (error "ops!")
 
 >     mapList = ELet (\mapList -> ELam (\f -> ELam (\l -> 
->       ECase (var l) [
+>       cases (var l) [
 >         (nill, \_ -> ECon nill []),
 >         (cons, \(x:xs:_) -> ECon cons [EApp (var f) (var x), EApp (EApp (var mapList) (var f)) (var xs)])
 >       ]) (error "We have no suitable type yet:)")) (error "We have no suitable type yet:)")) var
