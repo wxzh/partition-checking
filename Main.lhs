@@ -18,6 +18,9 @@
 \usepackage[all]{xy}
 \usepackage{framed}
 
+\input{macro-comments}
+\input{macros}
+
 \title{Partition Checking}
 
 \authorinfo
@@ -229,6 +232,73 @@ monomorphic type is sufficient or not.
 <       all (>0) []
 <   ==  
 <       True
+
+\section{Formalization}
+
+Template for some rules:
+
+\figtwocol{f:syntax}{System F}{
+\small
+\bda{l}
+
+\ba{llrl}
+    \textbf{Types} & \type & ::= & \alpha \mid \type \arrow \type 
+    \mid \forall \alpha. \type \\ 
+    \textbf{Expressions} & e & ::=  & x \mid \lambda (x:\type) . e \mid e\;e
+    \mid \Lambda \alpha . e \mid e\;\type 
+\ea
+\\ \\
+
+\ba{llrl} 
+\textbf{Type Environments} & \Gamma & ::= & \epsilon \mid \Gamma, \relation{x}{\type} 
+\ea 
+\\ \\
+
+\textbf{Type System}
+\\ \\
+
+\ba{lc}
+\multicolumn{2}{l}{\myruleform{\Gamma \turns  \relation{e}{\type}}} \\ \\
+
+  (\texttt{F-Var}) & 
+\myirule{
+           (x : \type) \in \Gamma
+ }{
+            \Gamma \turns x : \type
+} \\ \\
+
+  (\texttt{F-Abs}) & 
+\myirule{
+           \Gamma, x : \type_1 \turns e : \type_2
+ }{
+           \Gamma \turns \lambda x:\type_1.e : \type_1 \rightarrow \type_2
+} \\ \\
+
+  (\texttt{F-App}) & 
+\myirule{
+  \Gamma \turns e_1 : \type_2 \rightarrow \type_1 \\
+           \Gamma \turns e_2 : \type_2
+          }{
+           \Gamma \turns e_1 \, e_2 : \type_1
+} \\ \\
+
+  (\texttt{F-TApp}) & 
+\myirule{
+  \Gamma \turns e : \forall \alpha. \type_2
+           }{
+            \Gamma \turns e \, \type_1 : \type_2[\type_1/\alpha]
+} \\ \\
+
+  (\texttt{F-TAbs}) & 
+\myirule{
+   \Gamma, \alpha \turns e : \type
+            }{
+             \Gamma \turns \Lambda \alpha.e : \forall \alpha. \type 
+} \\ \\
+\ea
+
+\eda
+}
 
  
 \section{Related Work}\label{sec:related}
