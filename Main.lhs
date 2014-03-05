@@ -233,68 +233,85 @@ monomorphic type is sufficient or not.
 <   ==  
 <       True
 
+
 \section{Formalization}
 
 Template for some rules:
 
-\figtwocol{f:syntax}{System F}{
+\figtwocol{f:syntax}{Abstract Syntax}{
 \small
 \bda{l}
 
 \ba{llrl}
     \textbf{Types} & \type & ::= & \alpha \mid \type \arrow \type 
     \mid \forall \alpha. \type \\ 
-    \textbf{Expressions} & e & ::=  & x \mid \lambda (x:\type) . e \mid e\;e
-    \mid \Lambda \alpha . e \mid e\;\type 
+    \textbf{Type Contexts} & \Gamma & ::= & \epsilon \mid \Gamma, \relation{x}{\type} \\
+    \textbf{Expressions} & e & ::=  & x \mid c \mid C \mid e \oplus e \mid \texttt{let}\;x = e\;\texttt{in}\;e \mid \\
+                         &&&\texttt{fun}\; f(x:\type) . e \mid e\;e \mid \texttt{case}\;x\;\texttt{of}\;[p_i\arrow e_i]_{i\in I} \\
+    \textbf{Patterns} & p & ::= & x \mid \_ \mid C~p \\ 
+    \textbf{Values} & v & ::= & c \mid C\; v \mid \texttt{fun}\;f(x) . e  \\ 
+
 \ea
 \\ \\
 
 \ba{llrl} 
-\textbf{Type Environments} & \Gamma & ::= & \epsilon \mid \Gamma, \relation{x}{\type} 
+\textbf{Environments} & \rho & ::= & \epsilon \mid \rho[x\mapsto v]  
 \ea 
 \\ \\
+\eda
+}
 
-\textbf{Type System}
+
+\figtwocol{f:syntax}{Operational Semantics}{
+\small
+\bda{l}
+
+\textbf{Call-by-value Evaluation}
 \\ \\
 
 \ba{lc}
-\multicolumn{2}{l}{\myruleform{\Gamma \turns  \relation{e}{\type}}} \\ \\
+\multicolumn{2}{l}{\myruleform{\rho,e\Downarrow v}} \\ \\
 
-  (\texttt{F-Var}) & 
+  (\texttt{Var}) & 
+\myirule{}{
+            \rho,x \Downarrow \rho(x)
+} \\ \\
+
+  (\texttt{Val}) & 
+\myirule{}{
+            \rho,v \Downarrow v
+} \\ \\
+
+  (\texttt{Bin}) & 
 \myirule{
-           (x : \type) \in \Gamma
+           \rho,e_1\Downarrow c_1\;\;\;\rho,e_2\Downarrow c_2
  }{
-            \Gamma \turns x : \type
+           \rho,e_1\oplus e_2\Downarrow c_1\oplus c_2
 } \\ \\
 
-  (\texttt{F-Abs}) & 
+  (\texttt{Let}) & 
 \myirule{
-           \Gamma, x : \type_1 \turns e : \type_2
+           \rho,e_1\Downarrow v_1\;\;\;\rho[x\mapsto v_1],e_2\Downarrow v_2
  }{
-           \Gamma \turns \lambda x:\type_1.e : \type_1 \rightarrow \type_2
+           \rho,\texttt{let}\;x = e_1\;\texttt{in}\;e_2\Downarrow v_2
 } \\ \\
 
-  (\texttt{F-App}) & 
+  (\texttt{App}) & 
 \myirule{
-  \Gamma \turns e_1 : \type_2 \rightarrow \type_1 \\
-           \Gamma \turns e_2 : \type_2
-          }{
-           \Gamma \turns e_1 \, e_2 : \type_1
+           \rho,e_1 \Downarrow v_1\;\;\; \rho, e_2 \Downarrow v_2\\
+           \rho[f\mapsto v_1][x\mapsto v_2],e\Downarrow v\;\;\; v_1 = \texttt{fun}\; f(x).e
+ }{
+           \rho,e_1\;e_2 \Downarrow v
 } \\ \\
 
-  (\texttt{F-TApp}) & 
+  (\texttt{Cas}) & 
 \myirule{
-  \Gamma \turns e : \forall \alpha. \type_2
-           }{
-            \Gamma \turns e \, \type_1 : \type_2[\type_1/\alpha]
+           \rho' = match\; x\; p_i\;\;\;
+           \rho\rho',e_i\Downarrow v
+ }{
+           \rho,\texttt{case}\;x\;\texttt{of}\;[p_i\arrow e_i]_{i\in I} \Downarrow v
 } \\ \\
 
-  (\texttt{F-TAbs}) & 
-\myirule{
-   \Gamma, \alpha \turns e : \type
-            }{
-             \Gamma \turns \Lambda \alpha.e : \forall \alpha. \type 
-} \\ \\
 \ea
 
 \eda
