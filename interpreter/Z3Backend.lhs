@@ -9,30 +9,113 @@
 > import MiniFun2
 > import DataTypes
 
-> testZ3 e n = evalZ3 $ do
->   intSort <- mkIntSort 
->   pathsZ3 intSort (fst $ exec $ seval e) "True" IM.empty n
+> testZ3 :: (PExp ExecutionTree Void,[DataType]) -> Int -> IO ()
+> testZ3 (e,dts) n = evalZ3 $ do
+>   int <- mkIntSort 
+>   bool <- mkBoolSort
+>   adtSym <- mkStringSymbol "adtSort"
+>   adt <- mkUninterpretedSort adtSym -- For now, all ADT values have the same sort
+>   -- let adt = int   -- Use ints for ADT values?
+>   cfs <- preludeZ3 (bool,int,adt) dts
+>   let (ex, nVars) = exec $ seval e
+>       env = Z3Env {nextName = nVars+1
+>                   , intSort = int, boolSort = bool, adtSort = adt
+>                   , conFuns = cfs
+>                   , symVars = IM.empty
+>                   }
+>   pathsZ3 env ex "True" n
+>   pathsZ3 env ex "True" n
 > 
 
 
-> pathsZ3 :: Sort -> ExecutionTree -> String -> IntMap AST -> Int -> Z3 ()
-> pathsZ3 intSort _       s vars stop | stop <= 0  = return ()
-> pathsZ3 intSort (Exp e) s vars stop              = liftIO $ putStrLn $ s ++ " ==> " ++ ppSymValue' e
-> pathsZ3 intSort (NewSymVar n t e) s vars stop    = do
->  (v,ast) <- declareVar intSort (n,t)
->  pathsZ3 intSort e s (IM.insert v ast vars) stop
-> pathsZ3 intSort (Fork dt e cs w) s vars stop     
+We map each constructor to a function that takes an expression and asserts it 
+Also does some initial assertions and declarations.
+
+> preludeZ3 :: (Sort,Sort,Sort) -> [DataType] -> Z3 (ConMap (FuncDecl, [Sort]))
+> preludeZ3 sorts dts = do
+>   cm <- mkConMapM (conFun sorts) dts
+>   mapM_ (mkPrelude cm) dts
+>   return cm
+
+> conFun :: (Sort,Sort,Sort) -> Constructor -> Z3 (FuncDecl, [Sort])
+> conFun (bool,int,adt) c = do
+>   s <- mkStringSymbol $ show (conId c) ++ "_" ++ conName c -- Can just use mkIntSymbol?
+>   let
+>     paramSorts = map dataSort (conParams c)
+>     dataSort :: DataType -> Sort
+>     dataSort d | isBoolType d  = bool
+>                | isIntType d   = int
+>                | otherwise     = adt
+>   fd <- mkFuncDecl s paramSorts adt
+>   return (fd, paramSorts)
+
+> mkPrelude :: ConMap (FuncDecl, [Sort]) -> DataType -> Z3 ()
+> mkPrelude cm dt = do
+>   ast <- myForall allSorts (\vars -> mkCon vars cons >>= mkDistinct)
+>   assertCnstr ast
+>   where allSorts = concatMap (snd . (cm$)) cons
+>         cons     = dataCons dt
+>         mkCon [] []      = return []
+>         mkCon vs (c:cs)  = do 
+>           x  <- mkApp (fst $ cm c) vshere
+>           xs <- mkCon vsrest cs
+>           return (x : xs)
+>           where (vshere, vsrest) = splitAt (length (conParams c)) vs
+
+
+
+> myForall :: [Sort] -> ([AST] -> Z3 AST) -> Z3 AST
+> myForall sorts f = do 
+>   symbs <- mapM (\(s,n) -> mkIntSymbol n >>= \smb -> return (smb,s)) $ zip sorts [0..]
+>   bound <- mapM (\(s,n) -> mkBound n s) $ zip sorts [0..]
+>   res <- f bound 
+>   uncurry (mkForall []) (unzip symbs) res 
+
+
+> data Z3Env = Z3Env {nextName :: Int, boolSort :: Sort, intSort :: Sort, adtSort :: Sort, conFuns :: ConMap (FuncDecl,[Sort]), symVars :: IntMap AST}
+
+> pathsZ3 :: Z3Env -> ExecutionTree -> String -> Int -> Z3 ()
+> pathsZ3 _    _       s stop | stop <= 0  = return ()
+> pathsZ3 _    (Exp e) s stop              = liftIO $ putStrLn $ s ++ " ==> " ++ ppSymValue' e
+> pathsZ3 env (NewSymVar n t e) s stop    = do
+>  (v,ast) <- declareVar env (n,t)
+>  pathsZ3 env{symVars = IM.insert v ast (symVars env)} e s stop
+> pathsZ3 env (Fork dt e cs w) s stop     
 >   | isBoolType dt  = do 
->         ast <- symValueZ3 vars e
+>         ast <- symValueZ3 (symVars env) e
 >         let assertBoolCon :: (Constructor, ExecutionTree) -> Z3 ()
 >             assertBoolCon (c,ex) 
->               | fromBool c = local (assertCnstr ast >> whenSat (re ex (s ++ " && "++ppSymValue' e) vars (stop - 1)))
->               | otherwise  = local (mkNot ast >>= assertCnstr >> whenSat (re ex (s ++ " && "++ppSymValue' e) vars (stop - 1)))
+>               | fromBool c = local (assertCnstr ast >> whenSat (re ex (s ++ " && "++ppSymValue' e) (stop - 1)))
+>               | otherwise  = local (mkNot ast >>= assertCnstr >> whenSat (re ex (s ++ " && "++ppSymValue' e) (stop - 1)))
 >         mapM_ assertBoolCon (map (\(c,f) -> (c, f [])) cs)
+>         -- Deal with wildcard pattern here!
+>           
+>   | isIntType dt   = error "Pattern matching on integers not yet supported"
+>   | otherwise      = do
+>          ast <- symValueZ3 (symVars env) e
+>          let assertCon :: (Constructor, [ExecutionTree] -> ExecutionTree) -> Z3 ()
+>              assertCon (c,ex) = do
+>                let (cf,cSorts) = conFuns env c
+>                    nVars       = length cSorts
+>                    newNext     = nextName env + nVars
+>                    newNames    = [nextName env..newNext-1]
+>                newVars <- mapM (uncurry declareSort) (zip cSorts newNames)
+>                let varAsts = map snd newVars
+>                    env'    = env{nextName = newNext, symVars = IM.union (IM.fromList newVars) (symVars env)}
+>                -- return ()
+>                app  <- mkApp cf varAsts
+>                ast' <- mkEq ast app
+>                assertCnstr ast'
+>                whenSat (pathsZ3 env' (ex $ map mkExecTree newNames) (s ++ " && " ++conName c ++ " ~ " ++ ppSymValue' e) (stop-1)) 
+>                -- whenSat (re ex (s ++ " && "++conName c ++ " ~ " ++ ppSymValue' e) (stop - 1)))
+>          mapM_ (local . assertCon) cs
+>          -- Deal with wildcard pattern here!
 >   where
->     re = pathsZ3 intSort
+>     re = pathsZ3 env
+>   
 >
 
+> mkExecTree n = Exp (SFVar n (error "mkExecTree: Why would I need a type here?"))
 
 >
 > local :: Z3 a -> Z3 a
@@ -75,18 +158,16 @@
 > resToBool Unsat = False
 > resToBool Undef = error $ "resToBool: Undef"
 
-> declareVar :: Sort -> (Int, DataType) -> Z3 (Int, AST)
-> declareVar intSort (n, t) | isIntType t = do
->   x <- mkIntSymbol n
->   c <- mkConst x intSort
->   return (n, c)
-> declareVar intSort (n,t) | isBoolType t = do
->   x  <- mkIntSymbol n
->   bs <- mkBoolSort
->   c  <- mkConst x bs
->   return (n,c)
-> declareVar intSort (n,t) = error $ "declareVar, unsupported type: " ++ show t
+> declareVar :: Z3Env -> (Int, DataType) -> Z3 (Int, AST)
+> declareVar env (n, t)     | isIntType  t = declareSort (intSort env) n
+>                           | isBoolType t = declareSort (boolSort env) n
+>                           | otherwise    = declareSort (adtSort env) n 
 
+> declareSort :: Sort -> Int -> Z3 (Int, AST)
+> declareSort s n = do
+>   x <- mkIntSymbol n
+>   c <- mkConst x s
+>   return (n,c)
 
 > symValueZ3 :: IntMap AST -> SymValue -> Z3 AST
 > symValueZ3 vars sv = go sv where

@@ -68,6 +68,9 @@ Default case expressions, infers the type from the constructors matched.
 > caseInf e alts@((c,_):_) wild = ECase (conType c) e alts wild
 > caseInf _ [] _                = error "caseInf: empty case" -- Should be translated into "EError" or such?
 
+> nLam b = ELam b tInt
+> bLam b = ELam b tBool
+
 Standard (big-step) interpreter
 
 > data Value = VInt Int | VFun (Value -> Value) | VCon Constructor [Value]
@@ -303,7 +306,7 @@ Substitution of free variables in ExecutionTree
 >   show (VInt x)   = show x
 >   show (VCon s [])   = showConName s
 
-> nLam b = ELam b DataInt
+
 
 
 

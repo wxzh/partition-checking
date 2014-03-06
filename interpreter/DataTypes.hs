@@ -5,6 +5,9 @@ import Control.Monad
 import Control.Monad.Fix
 import Control.Monad.State.Lazy
 
+import Data.Array(array, (!))
+
+
 {-
 -- This is how I envision us writing programs, every self-contained module can export a number of programs (functions) and a list of data types. We can even get a kind of import of functions from another module by just binding its functions (and possibly data types as well). 
 ((p1,p2,p3),types1) = runNames module1
@@ -25,19 +28,26 @@ module1 = do
 
 
 
+-- | Constructor Identifiers
+type ConID = Int
 
-type ID = Int
+-- | Data Type Identifiers
+type DataID = Int
 
 idBool  = 0
 idInt   = 1
-idFalse = 2
-idTrue  = 3
 
-defSupply :: [ID]
-defSupply = [4..]
+idFalse = 0
+idTrue  = 1
+
+defConSupply :: [ConID]
+defConSupply = [2..]
+
+defDataSupply :: [DataID]
+defDataSupply = [2..]
 
 
-idOf :: DataType -> ID
+idOf :: DataType -> DataID
 idOf (DataType{dataId = did}) = did
 idOf DataBool                 = idBool
 idOf DataInt                  = idInt
@@ -62,18 +72,22 @@ litInt    = IntegerLit
 fromBool :: Constructor -> Bool
 fromBool Constructor{conId = cid} | cid == idFalse = False
                                   | cid == idTrue  = True
-fromBool _                                         = error "fromBool, not a Boolean"
+fromBool _                                         = error "fromBool: not a Boolean"
 
--- | TODO: Type constructors, function types. String names.
-data DataType = DataType {dataId :: ID, dataCons :: [Constructor]} 
+-- -- | Type constructors
+-- data TyCon = TyCon {tyConId :: ID, [DataType] -> DataType}
+
+-- | TODO: String names.
+data DataType = DataType {dataId :: DataID, dataCons :: [Constructor]} -- , tyVars :: [DataType]
               | DataInt
               | DataBool
+--              | DataFun [DataType]
   deriving Show
 instance Eq DataType where
-  a == b = idOf a == idOf b
+  a == b = idOf a == idOf b -- Arguably, this should check the tyVars as well. Currently [Int] == [Bool].
 
--- | TODO:(Optional) String names.
-data Constructor = Constructor {conId :: ID, conName :: String, conParams :: [DataType], conType :: DataType}
+
+data Constructor = Constructor {conId :: ConID, conName :: String, conParams :: [DataType], conType :: DataType}
                  | IntegerLit Integer
 instance Show Constructor where
   show c@Constructor{conParams = cps, conId = cid} = show $ (cid,map dataId cps)
@@ -83,31 +97,43 @@ instance Eq Constructor where
   IntegerLit n           == IntegerLit m           = n == m
 
 
-data S = S {nameSupply :: [ID], dataTypes :: [DataType]}
-defS = S{nameSupply = defSupply, dataTypes = []}
+data S = S {dataSupply :: [DataID], conSupply :: [ConID], dataTypes :: [DataType]}
+defS = S{dataSupply = defDataSupply, conSupply = defConSupply, dataTypes = []}
 
-type FreshNames = State S
+type DataTypesM = State S
 
 
-newName :: FreshNames ID 
-newName = state $ \s -> case nameSupply s of
-  [] -> error "NewName: names exhausted!"
-  (x:xs) -> (x, s{nameSupply = xs})
+newDataID :: DataTypesM DataID 
+newDataID = state $ \s -> case dataSupply s of
+  [] -> error "NewName: data names exhausted!"
+  (x:xs) -> (x, s{dataSupply = xs})
 
-regType :: DataType -> FreshNames ()
+newConID :: DataTypesM DataID 
+newConID = state $ \s -> case conSupply s of
+  [] -> error "NewName: constructor names exhausted!"
+  (x:xs) -> (x, s{conSupply = xs})
+  
+  
+regType :: DataType -> DataTypesM ()
 regType dt = modify (\s -> s{dataTypes = dt : dataTypes s})
 
-newData :: [(String,[DataType])] -> FreshNames (DataType,[Constructor])
+newData :: [(String,[DataType])] -> DataTypesM (DataType,[Constructor])
 newData cs = do
-  dtName  <- newName
-  csNames <- sequence (map (const newName) cs)
+  dtName  <- newDataID
+  csNames <- sequence (map (const newConID) cs)
   
   let cons = zipWith (\cid (s,dts) -> Constructor{conId = cid, conName = s, conParams = dts, conType = dt}) csNames cs
       dt = DataType dtName cons
   regType dt
   return (dt, cons)
 
-runNames :: FreshNames a -> (a, [DataType])
+
+-- newTypeCon :: ([DataType] -> [(String,[DataType])]) -> DataTypesM TyCon
+-- newTypeCon csf = do
+  
+
+
+runNames :: DataTypesM a -> (a, [DataType])
 runNames m = fmap dataTypes $ runState m defS
 
 conArity :: Constructor -> Int
@@ -117,3 +143,22 @@ conArity = length . conParams
 showConName :: Constructor -> String
 showConName Constructor{conName = cname, conId = cid} = cname -- ++ "_" ++ show cid -- If we want to be sure names are unique
 showConName (IntegerLit n) = show n
+
+
+-- | For making efficient mappings from constructors to values
+type ConMap a = Constructor -> a
+
+mkConMapM :: Monad m => (Constructor -> m a) -> [DataType] -> m (ConMap a)
+mkConMapM f ds = do
+  mcons <- mapM (\c -> f c >>= \x -> return (conId c, x)) cons
+  let 
+  return $ ((mkConArr mcons !) . conId)
+  where
+    cons = cFalse : cTrue : concatMap dataCons ds
+    mkConArr = array (0,maximum (map conId cons))
+    
+  
+
+
+
+

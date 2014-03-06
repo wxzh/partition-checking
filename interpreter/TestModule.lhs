@@ -7,15 +7,16 @@
 
 "Export list"
 
-> ((fact,prop_p3,prop_map_fusion),types1) = runNames module1
+> ((fact,prop_p3,prop_map_fusion, isCons),types1) = runNames module1
 > module1 = do
 
 Prelude, where types are defined
 
->   rec (tList, [cons, nill]) <- newData [("(:)",[tBool,tList]),("[]",[])]
+>   rec (tList, [cons, nill]) <- newData [("(:)",[tInt,tList]),("[]",[])]
 
 "Meta-programs"
 
+>   let listLam f = tList *\ f -- Lambdas with [Int] parameters
 >   let 
 >     toList :: (a -> PExp b c) -> [a] -> PExp b c
 >     toList f []      = ECon nill []
@@ -31,15 +32,20 @@ Core functions
 Other functions
 
 >   let 
+>     isCons = listLam $ \l -> cases (var l) [
+>                (cons, \(x:xs:_) -> ECon cTrue []),
+>                (nill, \_     -> ECon cFalse [])
+>                ]
+> 
 >     t1    = EApp sumList (toIntList [1..100])
->     p3 = ELam (\e -> 
+>     p3 = bLam (\e -> 
 >       cases (var e) [
 >         (cTrue, \_ -> EInt 0),
 >         (cFalse, \_ -> EInt 1)
->         ]) tBool
+>         ])
 >     prog3 = undefined
 
->     prop_p3 = ELam (\e -> EEq (EApp p3 (var e)) (EApp p3 (var e))) tBool
+>     prop_p3 = bLam (\e -> EApp p3 (var e) *== EApp p3 (var e))
 
 >     isPositive = nLam (\n -> ELt (EInt 0) (var n))
 
@@ -69,7 +75,7 @@ These functions have not yet been rewritten to the new format.
 
 >     prop_map_fusion = ELam (\f -> ELam (\g -> ELam (\xs -> 
 >       EEq (EApp (EApp mapList (var f)) (EApp (EApp mapList (var g)) (var xs)))
->           (EApp (EApp mapList (ELam (\x -> EApp (var f) (EApp (var g) (var x))) undefined)) (var xs))) (error "ops!")) (error "ops!")) (error "ops!")
+>           (EApp (EApp mapList (listLam (\x -> EApp (var f) (EApp (var g) (var x))))) (var xs))) (error "ops!")) (error "ops!")) (error "ops!")
 
 >     mapList = ELet (\mapList -> ELam (\f -> ELam (\l -> 
 >       cases (var l) [
@@ -79,7 +85,12 @@ These functions have not yet been rewritten to the new format.
 
 Export list is duplicated here.
 
->   return (fact,prop_p3,prop_map_fusion)
+>   return (fact,prop_p3,prop_map_fusion, isCons)
 
 
 > testFact = eval (EApp fact (EInt 10))
+
+
+> runFact n = testZ3 (fact,types1) n
+
+
