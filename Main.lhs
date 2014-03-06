@@ -246,10 +246,10 @@ Template for some rules:
     \textbf{Types} & \type & ::= & \alpha \mid \type \arrow \type 
     \mid \forall \alpha. \type \\ 
     \textbf{Type Contexts} & \Gamma & ::= & \epsilon \mid \Gamma, \relation{x}{\type} \\
-    \textbf{Expressions} & e & ::=  & x \mid c \mid C \mid e \oplus e \mid \texttt{let}\;x = e\;\texttt{in}\;e \mid \\
-                         &&&\texttt{fun}\; f(x:\type) . e \mid e\;e \mid \texttt{case}\;x\;\texttt{of}\;[p_i\arrow e_i]_{i\in I} \\
+    \textbf{Expressions} & e & ::=  & x \mid c \mid C~\overline{e} \mid e \oplus e \mid \texttt{let}\;x = e\;\texttt{in}\;e \mid \\
+                         &&&\lambda x . e \mid e\;e \mid \texttt{case}\;e\;\texttt{of}\;[p_i\arrow e_i]_{i\in I} \\
     \textbf{Patterns} & p & ::= & x \mid \_ \mid C~p \\ 
-    \textbf{Values} & v & ::= & c \mid C\; v \mid \texttt{fun}\;f(x) . e  \\ 
+    \textbf{Values} & v & ::= & c \mid C\; \overline{v} \mid \lambda x . e  \\ 
 
 \ea
 \\ \\
@@ -298,18 +298,19 @@ Template for some rules:
 
   (\texttt{App}) & 
 \myirule{
-           \rho,e_1 \Downarrow v_1\;\;\; \rho, e_2 \Downarrow v_2\\
-           \rho[f\mapsto v_1][x\mapsto v_2],e\Downarrow v\;\;\; v_1 = \texttt{fun}\; f(x).e
+           \rho,e_1 \Downarrow \texttt{fun}\; f(x).e\;\;\; \rho, e_2 \Downarrow v_2\\
+           \rho[f\mapsto v_1][x\mapsto v_2],e\Downarrow v\;\;\;
  }{
            \rho,e_1\;e_2 \Downarrow v
 } \\ \\
 
   (\texttt{Cas}) & 
 \myirule{
-           \rho' = match\; x\; p_i\;\;\;
-           \rho\rho',e_i\Downarrow v
+           \rho, e \Downarrow v_1 \\
+           \rho' = match\; v_1\; p_i\;\;\;
+           \rho\rho',e_i\Downarrow v_2
  }{
-           \rho,\texttt{case}\;x\;\texttt{of}\;[p_i\arrow e_i]_{i\in I} \Downarrow v
+           \rho,\texttt{case}\;e\;\texttt{of}\;[p_i\arrow e_i]_{i\in I} \Downarrow v_2
 } \\ \\
 
 \ea
