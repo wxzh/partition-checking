@@ -248,7 +248,7 @@ Template for some rules:
     \textbf{Type Contexts} & \Gamma & ::= & \epsilon \mid \Gamma, \relation{x}{\type} \\
     \textbf{Expressions} & e & ::=  & x \mid c \mid C~\overline{e} \mid e \oplus e \mid \texttt{let}\;x = e\;\texttt{in}\;e \mid \\
                          &&&\lambda x . e \mid e\;e \mid \texttt{case}\;e\;\texttt{of}\;[p_i\arrow e_i]_{i\in I} \\
-    \textbf{Patterns} & p & ::= & x \mid \_ \mid C~p \\ 
+    \textbf{Patterns} & p & ::= & x \mid \_ \mid C~\overline{p} \\ 
     \textbf{Values} & v & ::= & c \mid C\; \overline{v} \mid \lambda x . e  \\ 
 
 \ea
@@ -306,11 +306,11 @@ Template for some rules:
 
   (\texttt{Cas}) & 
 \myirule{
-           \rho, e \Downarrow v_1 \\
-           \rho' = match\; v_1\; p_i\;\;\;
-           \rho\rho',e_i\Downarrow v_2
+           \rho, e \Downarrow v \\
+           \rho_i = match\; v\; p_i\;\;\;
+           \rho\rho_i,e_i\Downarrow v_i
  }{
-           \rho,\texttt{case}\;e\;\texttt{of}\;[p_i\arrow e_i]_{i\in I} \Downarrow v_2
+           \rho,\texttt{case}\;e\;\texttt{of}\;[p_i\arrow e_i]_{i\in I} \Downarrow v_i
 } \\ \\
 
 \ea
