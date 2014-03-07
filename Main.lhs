@@ -298,8 +298,8 @@ Template for some rules:
 
   (\texttt{App}) & 
 \myirule{
-           \rho,e_1 \Downarrow \texttt{fun}\; f(x).e\;\;\; \rho, e_2 \Downarrow v_2\\
-           \rho[f\mapsto v_1][x\mapsto v_2],e\Downarrow v\;\;\;
+           \rho,e_1 \Downarrow \lambda x. e\;\;\; \rho, e_2 \Downarrow v_1\\
+           \rho[x\mapsto v_1],e\Downarrow v\;\;\;
  }{
            \rho,e_1\;e_2 \Downarrow v
 } \\ \\
