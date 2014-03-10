@@ -51,7 +51,7 @@ Some convenient functions and instances for writing expressions.
 > (*$)     = EApp
 > (*==)    = EEq
 > (*<)     = ELt
-> t *\ f   = ELam f t
+> t *\ f   = ELam (f . var) t -- Automatically wraps all variable occurrences in var
 > infixr 1 *$
 > infix 4 *==
 > infix 4 *<
@@ -59,17 +59,24 @@ Some convenient functions and instances for writing expressions.
 
 Default case expressions, infers the type from the constructors matched.
 
-> cases :: PExp a b -> [(Constructor, [a] -> PExp a b)] -> PExp a b
+> cases :: PExp a b -> [(Constructor, [PExp a b] -> PExp a b)] -> PExp a b
 > cases e alts = caseInf e alts Nothing
 >
-> casesW :: PExp a b -> [(Constructor, [a] -> PExp a b)] -> PExp a b -> PExp a b
+> casesW :: PExp a b -> [(Constructor, [PExp a b] -> PExp a b)] -> PExp a b -> PExp a b
 > casesW e alts w = caseInf e alts (Just w) 
 > 
-> caseInf e alts@((c,_):_) wild = ECase (conType c) e alts wild
+
+>
+> caseInf e alts@((c,_):_) wild = ECase (conType c) e wrapped wild
+>   where wrapped = [(c,f . map var) |(c,f) <- alts] 
 > caseInf _ [] _                = error "caseInf: empty case" -- Should be translated into "EError" or such?
 
-> nLam b = ELam b tInt
-> bLam b = ELam b tBool
+> nLam b = tInt *\ b
+> bLam b = tBool *\ b
+
+> lets :: (PExp a b -> PExp a b) -> (PExp a b -> PExp a b) -> PExp a b
+> lets f g = ELet (f . var) (g . var)
+
 
 Standard (big-step) interpreter
 
@@ -192,7 +199,8 @@ Merge is too eager?
 
 
 > treeApply (Exp (SFVar x pt)) t = apply (SApp (SFVar x pt)) t  -- f e
-> treeApply (Exp (SFun f pt))  t = f t                       -- (\x . e1) e2
+> treeApply (Exp (SFun f pt))  t = f t                          -- (\x . e1) e2
+> -- treeApply (Exp (SEq _ _))    _ = error "treeApply: Bad function"
 > treeApply (Fork dt e es w)   t = Fork dt e [(s, \l -> treeApply (v l) t) | (s,v) <- es] (fmap (\we -> treeApply we t) w)
 > treeApply (NewSymVar n d e)  t = NewSymVar n d (treeApply e t)
 >
@@ -299,7 +307,7 @@ Substitution of free variables in ExecutionTree
 > ppSymValue (SApp v1 v2) n  = ppSymValue v1 n ++ " " ++ ppSymValue v2 n
 > ppSymValue (SFun f t)   n  = "<<function>>" -- "(\\x" ++ show n ++ ". " ++ f (Exp (SFVar n t)) ++ ")" -- <<function>>"
 
-> ppSymValue' e = ppSymValue e undefined -- The int is not used?
+> ppSymValue' e = ppSymValue e 100 -- The int is not used?
 
 > instance Show Value where
 >   show (VFun _)   = "<<function>>"

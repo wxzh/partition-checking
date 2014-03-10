@@ -51,6 +51,7 @@ idOf :: DataType -> DataID
 idOf (DataType{dataId = did}) = did
 idOf DataBool                 = idBool
 idOf DataInt                  = idInt
+idOf (DataFun _ _)              = error "idOf DataFun"
 
 
 -- Globally available types, with special interpreter support
@@ -81,11 +82,19 @@ fromBool _                                         = error "fromBool: not a Bool
 data DataType = DataType {dataId :: DataID, dataCons :: [Constructor]} -- , tyVars :: [DataType]
               | DataInt
               | DataBool
---              | DataFun [DataType]
+              | DataFun [DataType] DataType
   deriving Show
 instance Eq DataType where
-  a == b = idOf a == idOf b -- Arguably, this should check the tyVars as well. Currently [Int] == [Bool].
+  DataFun xs q == b = case b of
+    DataFun ys r -> xs == ys && q == r
+    _            -> False
+  _          == DataFun _ _ = False
+  a == b = idOf a == idOf b -- Currently doesn't work for functions.
 
+
+(*->) :: DataType -> DataType -> DataType
+x *-> DataFun xs r = DataFun (x:xs) r
+x *-> y            = DataFun [x] y
 
 data Constructor = Constructor {conId :: ConID, conName :: String, conParams :: [DataType], conType :: DataType}
                  | IntegerLit Integer

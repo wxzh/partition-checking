@@ -32,56 +32,56 @@ Core functions
 Other functions
 
 >   let 
->     isCons = listLam $ \l -> cases (var l) [
+>     isCons = listLam $ \l -> cases l [
 >                (cons, \(x:xs:_) -> ECon cTrue []),
->                (nill, \_     -> ECon cFalse [])
+>                (nill, \_     -> cases l [
+>                  (cons, \(x:xs:_) -> ECon cTrue []),
+>                  (nill, \_     -> ECon cFalse [])
+>                  ])
 >                ]
 > 
 >     t1    = EApp sumList (toIntList [1..100])
 >     p3 = bLam (\e -> 
->       cases (var e) [
+>       cases e [
 >         (cTrue, \_ -> EInt 0),
 >         (cFalse, \_ -> EInt 1)
 >         ])
->     prog3 = undefined
+>     prop_p3 = bLam (\e -> EApp p3 e *== EApp p3 e)
 
->     prop_p3 = bLam (\e -> EApp p3 (var e) *== EApp p3 (var e))
+>     isPositive = nLam (\n -> ELt (EInt 0) n)
 
->     isPositive = nLam (\n -> ELt (EInt 0) (var n))
-
->     p1 = nLam (\n -> eIf (var n *< 10) (-1) 1)
+>     p1 = nLam (\n -> eIf (n *< 10) (-1) 1)
+>     p2 = nLam (\n -> eIf (n *< 5) (-1) 1)
 >
->     p2 = nLam (\n -> eIf (var n *< 5) (-1) 1)
+>     prop_p1_p2 = nLam (\n -> (EApp p1 n *== p2 *$ n)) 
+
+>     prop_fact = nLam (\n -> isPositive *$ (fact *$ n)) 
 >
->     prop_p1_p2 = nLam (\n -> EEq (EApp p1 (var n)) (EApp p2 (var n))) 
-
->     prop_fact = nLam (\n -> EApp isPositive (EApp fact (var n))) 
-
-
-
->     fact = ELet (\fact -> nLam (\n ->
->       eIf (var n *< 1)
+>     fact = lets (\fact -> nLam (\n ->
+>       eIf (n *< 1)
 >           1
->           (var n * (var fact *$ (var n - 1))))) var
+>           (n * (fact *$ (n - 1))))) id
 
 
->     sumList = ELet (\sumList -> tList *\ (\l -> 
->       cases (var l) [
+>     sumList = lets (\sumList -> tList *\ (\l -> 
+>       cases l [
 >         (nill, \_ -> 0),
->         (cons, \(x:xs:_) -> var x + (var sumList *$ var xs))
->       ])) var
+>         (cons, \(x:xs:_) -> x + (sumList *$ xs))
+>       ])) id
 
 These functions have not yet been rewritten to the new format.
 
->     prop_map_fusion = ELam (\f -> ELam (\g -> ELam (\xs -> 
->       EEq (EApp (EApp mapList (var f)) (EApp (EApp mapList (var g)) (var xs)))
->           (EApp (EApp mapList (listLam (\x -> EApp (var f) (EApp (var g) (var x))))) (var xs))) (error "ops!")) (error "ops!")) (error "ops!")
+>     funType = tInt *-> tInt
+>     prop_map_fusion =  funType *\ \f -> funType *\ \g -> listLam $ \xs -> 
+>           (mapList *$ f *$ (mapList *$ g *$ xs))
+>           *==
+>           (mapList *$ (listLam (\x -> f *$ (g *$ x))) *$ xs)
 
->     mapList = ELet (\mapList -> ELam (\f -> ELam (\l -> 
->       cases (var l) [
+>     mapList = lets (\mapList -> funType *\ \f -> listLam $ \l -> 
+>       cases l [
 >         (nill, \_ -> ECon nill []),
->         (cons, \(x:xs:_) -> ECon cons [EApp (var f) (var x), EApp (EApp (var mapList) (var f)) (var xs)])
->       ]) (error "We have no suitable type yet:)")) (error "We have no suitable type yet:)")) var
+>         (cons, \(x:xs:_) -> ECon cons [EApp f x, EApp (mapList *$ f) xs])
+>       ]) id
 
 Export list is duplicated here.
 
@@ -93,4 +93,6 @@ Export list is duplicated here.
 
 > runFact n = testZ3 (fact,types1) n
 
+> z3_1 = testZ3 (isCons,types1)
 
+> z3_2 = testZ3 (prop_map_fusion,types1) -- Not working yet

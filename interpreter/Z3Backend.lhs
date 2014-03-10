@@ -24,12 +24,11 @@
 >                   , symVars = IM.empty
 >                   }
 >   pathsZ3 env ex "True" n
->   pathsZ3 env ex "True" n
 > 
 
 
-We map each constructor to a function that takes an expression and asserts it 
-Also does some initial assertions and declarations.
+We map each constructor to a Z3 function symbol and its parameter sorts. 
+Also does some initial assertions.
 
 > preludeZ3 :: (Sort,Sort,Sort) -> [DataType] -> Z3 (ConMap (FuncDecl, [Sort]))
 > preludeZ3 sorts dts = do
