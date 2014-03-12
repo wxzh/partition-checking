@@ -7,7 +7,7 @@
 
 "Export list"
 
-> ((fact,prop_p3,prop_map_fusion, isCons),types1) = runNames module1
+> ((fact,prop_p3,prop_map_fusion, isCons, fromTo, foldList),types1) = runNames module1
 > module1 = do
 
 Prelude, where types are defined
@@ -71,7 +71,7 @@ Other functions
 
 These functions have not yet been rewritten to the new format.
 
->     funType = tInt *-> tInt
+>     funType = tInt ~> tInt
 >     prop_map_fusion =  funType *\ \f -> funType *\ \g -> listLam $ \xs -> 
 >           (mapList *$ f *$ (mapList *$ g *$ xs))
 >           *==
@@ -83,9 +83,22 @@ These functions have not yet been rewritten to the new format.
 >         (cons, \(x:xs:_) -> ECon cons [EApp f x, EApp (mapList *$ f) xs])
 >       ]) id
 
+> -- :: (Int -> Int -> Int) -> [Int] -> Int -> Int
+>     foldList = function $ \foldList -> funType *\ \f -> listLam $ \l -> nLam $ \b -> 
+>       cases l [
+>         nill *-> \_        -> b,
+>         cons *-> \(x:xs:_) -> f *$ x *$ (foldList *$ f *$ xs *$ b)
+>       ]
+
+>
+>     fromTo = function $ \fromTo -> nLam $ \from -> nLam $ \to -> 
+>       eIf (to *< from) (ECon nill []) (ECon cons [from, fromTo *$ (from+1) *$ to])
+>
+>
+
 Export list is duplicated here.
 
->   return (fact,prop_p3,prop_map_fusion, isCons)
+>   return (fact,prop_p3,prop_map_fusion, isCons, fromTo, foldList)
 
 
 > testFact = eval (EApp fact (EInt 10))
@@ -96,3 +109,9 @@ Export list is duplicated here.
 > z3_1 = testZ3 (isCons,types1)
 
 > z3_2 = testZ3 (prop_map_fusion,types1) -- Not working yet
+
+> eFromTo    = fromTo *$ 10 *$ 13
+> evalFromTo = eval eFromTo
+> z3FromTo   = testZ3 (fromTo,types1)
+
+

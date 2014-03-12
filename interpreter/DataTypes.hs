@@ -92,9 +92,9 @@ instance Eq DataType where
   a == b = idOf a == idOf b -- Currently doesn't work for functions.
 
 
-(*->) :: DataType -> DataType -> DataType
-x *-> DataFun xs r = DataFun (x:xs) r
-x *-> y            = DataFun [x] y
+(~>) :: DataType -> DataType -> DataType
+x ~> DataFun xs r = DataFun (x:xs) r
+x ~> y            = DataFun [x] y
 
 data Constructor = Constructor {conId :: ConID, conName :: String, conParams :: [DataType], conType :: DataType}
                  | IntegerLit Integer

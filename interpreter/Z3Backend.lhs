@@ -81,7 +81,7 @@ Also does some initial assertions.
 >  pathsZ3 env{symVars = IM.insert v ast (symVars env)} e s stop
 > pathsZ3 env (Fork dt e cs w) s stop     
 >   | isBoolType dt  = do 
->         ast <- symValueZ3 (symVars env) e
+>         ast <- symValueZ3 env e
 >         let assertBoolCon :: (Constructor, ExecutionTree) -> Z3 ()
 >             assertBoolCon (c,ex) 
 >               | fromBool c = local (assertCnstr ast >> whenSat (re ex (s ++ " && "++ppSymValue' e) (stop - 1)))
@@ -91,7 +91,7 @@ Also does some initial assertions.
 >           
 >   | isIntType dt   = error "Pattern matching on integers not yet supported"
 >   | otherwise      = do
->          ast <- symValueZ3 (symVars env) e
+>          ast <- symValueZ3 env e
 >          let assertCon :: (Constructor, [ExecutionTree] -> ExecutionTree) -> Z3 ()
 >              assertCon (c,ex) = do
 >                let (cf,cSorts) = conFuns env c
@@ -168,16 +168,18 @@ Also does some initial assertions.
 >   c <- mkConst x s
 >   return (n,c)
 
-> symValueZ3 :: IntMap AST -> SymValue -> Z3 AST
-> symValueZ3 vars sv = go sv where
+> symValueZ3 :: Z3Env -> SymValue -> Z3 AST
+> symValueZ3 env@Z3Env{symVars = vars, conFuns = cfs} sv = go sv where
 >  go :: SymValue -> Z3 AST
->  go (SFVar n pt) = return $ vars ! n
+>  go (SFVar n pt)  = return $ vars ! n
 >  go (SInt i)      = mkInt i
-> --symValueZ3 vars (SBool True)  = "true"
-> --symValueZ3 vars (SBool False) = "false"
-> --symValueZ3 (SEq v1 v2)   = "(= " ++ symValueZ3 v1 ++ " " ++ symValueZ3 v2 ++ ")"
-> --symValueZ3 (SAdd v1 v2)  = "(+ " ++ symValueZ3 v1 ++ " " ++ symValueZ3 v2 ++ ")"
-> --symValueZ3 (SMul v1 v2)  = "(* " ++ symValueZ3 v1 ++ " " ++ symValueZ3 v2 ++ ")"
+>  go (SCon c vs)   = do
+>    xs <- mapM go vs
+>    mkApp (fst $ cfs c) xs
+>  go (SEq v1 v2)   = do
+>    x1 <- go v1
+>    x2 <- go v2
+>    mkEq x1 x2
 >  go (SLt v1 v2)   = do
 >    x1 <- go v1
 >    x2 <- go v2
@@ -190,7 +192,12 @@ Also does some initial assertions.
 >    x1 <- go v1
 >    x2 <- go v2
 >    mkMul [x1, x2]
-> --symValueZ3 vars (SApp v1 v2)  = "("   ++ symValueZ3 v1 ++ " " ++ symValueZ3 v2 ++ ")"
+>  go (SApp v1 v2)  = do
+>    x1 <- symFunZ3 env v1
+>    x2 <- go v2
+>    mkApp x1 [x2] -- This will be difficult to implement for partial functions
 >  go (SFun f _)    = error "symValueZ3 of SFun"
 
+> symFunZ3 :: Z3Env -> SymValue -> Z3 FuncDecl
+> symFunZ3 Z3Env{} sv = error "symFunZ3 not implemented yet"
 

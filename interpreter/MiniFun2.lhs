@@ -7,6 +7,7 @@
 > import Control.Monad.State
 > import DataTypes
 > import Control.Monad
+> import Data.List
 
 Using PHOAS to represent variable binding
 
@@ -37,6 +38,29 @@ Need to represent primitives in a better way?
             c a b -> e1 a b
             _     -> e2
 
+
+
+> pprExp :: Show b => PExp String b -> String
+> pprExp = go (map (('x':) . show) [0..]) where
+>  go vrs@(vr:vrs') e0 = case e0 of
+>    EFVar b             -> show b
+>    EBVar a             -> a
+>    EInt n              -> show n
+>    EEq e1 e2           -> binop e1 "==" e2
+>    ELt e1 e2           -> binop e1 "<" e2
+>    EAdd e1 e2          -> binop e1 "+" e2
+>    EMul e1 e2          -> binop e1 "*" e2
+>    ELet f g            -> unwords ["(let", vr,"=",go vrs' (f vr),"in",go vrs' (g vr)++")"]
+>    ELam f dt           -> unwords ["(\\"++vr,"->",go vrs' (f vr)++")"] 
+>    EApp e1 e2          -> unwords ["("++rc e1, rc e2++")"]
+>    ECon c es           -> unwords (showConName c : map rc es)
+>    ECase dt e alts we  -> unwords ["case",rc e,"of {", intercalate "; " (map showAlt alts) ,"}"]
+>    where
+>      rc             = go vrs
+>      binop e1 s e2  = unwords ["("++rc e1, s, rc e2++")"]
+>      showAlt (c,f)  = unwords (showConName c:xs++["->",go vrs' (f xs)])
+>        where (xs, vrs') = splitAt (length $ conParams c) vrs
+
 Some convenient functions and instances for writing expressions.
 
 > instance Num (PExp a b) where
@@ -52,10 +76,6 @@ Some convenient functions and instances for writing expressions.
 > (*==)    = EEq
 > (*<)     = ELt
 > t *\ f   = ELam (f . var) t -- Automatically wraps all variable occurrences in var
-> infixr 1 *$
-> infix 4 *==
-> infix 4 *<
-> infixr 0 *\
 
 Default case expressions, infers the type from the constructors matched.
 
@@ -65,17 +85,29 @@ Default case expressions, infers the type from the constructors matched.
 > casesW :: PExp a b -> [(Constructor, [PExp a b] -> PExp a b)] -> PExp a b -> PExp a b
 > casesW e alts w = caseInf e alts (Just w) 
 > 
-
->
 > caseInf e alts@((c,_):_) wild = ECase (conType c) e wrapped wild
 >   where wrapped = [(c,f . map var) |(c,f) <- alts] 
 > caseInf _ [] _                = error "caseInf: empty case" -- Should be translated into "EError" or such?
+> (*->) :: Constructor -> ([PExp a b] -> PExp a b) -> (Constructor, [PExp a b] -> PExp a b)
+> (*->) = (,) 
+
+> infixl 1 *$
+> infix 4 *==
+> infix 4 *<
+> infixr 0 *\
+> infixr 0 *->
+
 
 > nLam b = tInt *\ b
 > bLam b = tBool *\ b
 
 > lets :: (PExp a b -> PExp a b) -> (PExp a b -> PExp a b) -> PExp a b
 > lets f g = ELet (f . var) (g . var)
+
+For defining recursive functions
+
+> function :: (PExp a b -> PExp a b) -> PExp a b
+> function f = lets f id
 
 
 Standard (big-step) interpreter
@@ -104,6 +136,8 @@ Standard (big-step) interpreter
 > eval (EApp e1 e2)       = 
 >  case (eval e1) of
 >     VFun f -> f (eval e2)
+>     v      -> error $ "Value used as function:"++show v
+>     -- _      -> error $ "Not a function:"++pprExp e1
 > eval (ECon s xs)             = VCon s (map eval xs)
 > eval (ECase t e clauses wild)       =
 >  case eval e of
@@ -123,7 +157,7 @@ Symbolic interpreter
 >   | SCon Constructor [SymValue]
 >   | SFun (ExecutionTree -> ExecutionTree) DataType -- just store the function
 
-> type Pattern = ((String,Int), [Int])
+> type Pattern = ((String,Int), [Int]) -- Now unused?
 
 > pname :: Pattern -> String
 > pname = fst . fst
@@ -310,9 +344,10 @@ Substitution of free variables in ExecutionTree
 > ppSymValue' e = ppSymValue e 100 -- The int is not used?
 
 > instance Show Value where
->   show (VFun _)   = "<<function>>"
->   show (VInt x)   = show x
->   show (VCon s [])   = showConName s
+>   show (VFun _)      = "<<function>>"
+>   show (VInt x)      = show x
+>   show (VCon c [])   = showConName c
+>   show (VCon c vs)   = unwords (showConName c:map (\v -> "("++show v++")") vs)
 
 
 
