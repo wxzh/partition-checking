@@ -308,9 +308,9 @@ Template for some rules:
 
   (\texttt{Let}) & 
 \myirule{
-           \rho~[f\mapsto \lambda x . e_1], e_2 \Downarrow e
+           \rho~[f\mapsto \lambda x . e_1], e_2 \Downarrow v
  }{
-           \rho,\texttt{let}\;f = \lambda x . e_1\;\texttt{in}\;e_2\Downarrow e
+           \rho,\texttt{let}\;f = \lambda x . e_1\;\texttt{in}\;e_2\Downarrow v
 } \\ \\
 
   (\texttt{App}) & 
