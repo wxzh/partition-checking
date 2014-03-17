@@ -1,5 +1,4 @@
 
-
 > module MiniFun2 where
 
 > import Prelude hiding (EQ,LT)
@@ -7,7 +6,7 @@
 > import Control.Monad.State
 > import DataTypes
 > import Control.Monad
-> import Data.List
+> import Data.List(intercalate)
 
 Using PHOAS to represent variable binding
 
@@ -15,7 +14,6 @@ Need to represent primitives in a better way?
 
 > -- Empty type for saying 'no free variables'
 > data Void
-
 
 > data PExp a b =
 >     EFVar b 
@@ -137,7 +135,6 @@ Standard (big-step) interpreter
 >  case (eval e1) of
 >     VFun f -> f (eval e2)
 >     v      -> error $ "Value used as function:"++show v
->     -- _      -> error $ "Not a function:"++pprExp e1
 > eval (ECon s xs)             = VCon s (map eval xs)
 > eval (ECase t e clauses wild)       =
 >  case eval e of
@@ -205,7 +202,6 @@ TODO: Improve code here
  1) Should be possible to use 1 definition for merge instead of "mergeList" and "merge"
     (Also mergeList need to do partial-evaluation as merge)
  2) Deal with operators in a better way
- 3) Integrate NewSymVar (?)
  
 > mergeList f []                    = Exp (f [])
 > mergeList f (Exp e : xs)          = mergeList (\es -> f (e:es)) xs
@@ -333,15 +329,18 @@ Substitution of free variables in ExecutionTree
 > ppSymValue :: SymValue -> Int -> String
 > ppSymValue (SFVar n pt) _   = "x" ++ show n
 > ppSymValue (SInt i)     n  = show i
-> ppSymValue (SCon s vs)  n  = showConName s ++ " " ++ concatMap (\v -> "(" ++ ppSymValue v n ++ ") ") vs 
+> ppSymValue (SCon s [])  n  = showConName s
+> ppSymValue (SCon s vs)  n  = pars $ unwords $ showConName s : map (\v -> ppSymValue v n) vs 
 > ppSymValue (SEq v1 v2)  n  = "(" ++ ppSymValue v1 n ++ " == " ++ ppSymValue v2 n ++ ")"
 > ppSymValue (SAdd v1 v2) n  = "(" ++ ppSymValue v1 n ++ " + " ++ ppSymValue v2 n ++ ")"
 > ppSymValue (SMul v1 v2) n  = "(" ++ ppSymValue v1 n ++ " * " ++ ppSymValue v2 n ++ ")"
 > ppSymValue (SLt v1 v2)  n  = "(" ++ ppSymValue v1 n ++ " < " ++ ppSymValue v2 n ++ ")"
 > ppSymValue (SApp v1 v2) n  = ppSymValue v1 n ++ " " ++ ppSymValue v2 n
 > ppSymValue (SFun f t)   n  = "<<function>>" -- "(\\x" ++ show n ++ ". " ++ f (Exp (SFVar n t)) ++ ")" -- <<function>>"
+> pars s = "(" ++ s ++ ")"
 
-> ppSymValue' e = ppSymValue e 100 -- The int is not used?
+
+> ppSymValue' e = ppSymValue e (error "The int is not used?")
 
 > instance Show Value where
 >   show (VFun _)      = "<<function>>"

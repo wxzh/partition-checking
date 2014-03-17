@@ -1,6 +1,6 @@
 > module Z3Backend where
 
-> import Control.Monad (ap, liftM2, when)
+> import Control.Monad (ap, liftM2, when, mplus)
 > import Control.Monad.IO.Class (liftIO)
 > import Data.IntMap (IntMap, (!))
 > import qualified Data.IntMap as IM
@@ -30,29 +30,37 @@
 We map each constructor to a Z3 function symbol and its parameter sorts. 
 Also does some initial assertions.
 
-> preludeZ3 :: (Sort,Sort,Sort) -> [DataType] -> Z3 (ConMap (FuncDecl, [Sort]))
+> preludeZ3 :: (Sort,Sort,Sort) -> [DataType] -> Z3 (ConMap ConFun)
 > preludeZ3 sorts dts = do
 >   cm <- mkConMapM (conFun sorts) dts
 >   mapM_ (mkPrelude cm) dts
+>   -- mapM_ (mkInj cm) (concatMap dataCons dts)
+>   showContext >>= liftIO . putStrLn
 >   return cm
 
-> conFun :: (Sort,Sort,Sort) -> Constructor -> Z3 (FuncDecl, [Sort])
+> conFun :: (Sort,Sort,Sort) -> Constructor -> Z3 ConFun
 > conFun (bool,int,adt) c = do
->   s <- mkStringSymbol $ show (conId c) ++ "_" ++ conName c -- Can just use mkIntSymbol?
+>   s <- mkStringSymbol $ "c"++show (conId c) ++ "_" ++ conName c -- Can just use mkIntSymbol?
 >   let
 >     paramSorts = map dataSort (conParams c)
+>   fd <- mkFuncDecl s paramSorts adt
+>   projectors <- mapM mkProjector (zip paramSorts [0..])
+>   return (fd, zip paramSorts projectors)
+>   where
+>     mkProjector :: (Sort,Int) -> Z3 FuncDecl
+>     mkProjector (s,n) = do
+>       symb <- mkStringSymbol $ "p"++show n++"_"++show (conId c)
+>       mkFuncDecl symb [adt] s
 >     dataSort :: DataType -> Sort
 >     dataSort d | isBoolType d  = bool
 >                | isIntType d   = int
 >                | otherwise     = adt
->   fd <- mkFuncDecl s paramSorts adt
->   return (fd, paramSorts)
 
-> mkPrelude :: ConMap (FuncDecl, [Sort]) -> DataType -> Z3 ()
+> mkPrelude :: ConMap ConFun -> DataType -> Z3 ()
 > mkPrelude cm dt = do
 >   ast <- myForall allSorts (\vars -> mkCon vars cons >>= mkDistinct)
 >   assertCnstr ast
->   where allSorts = concatMap (snd . (cm$)) cons
+>   where allSorts = concatMap (conFunSorts . cm) cons
 >         cons     = dataCons dt
 >         mkCon [] []      = return []
 >         mkCon vs (c:cs)  = do 
@@ -60,7 +68,6 @@ Also does some initial assertions.
 >           xs <- mkCon vsrest cs
 >           return (x : xs)
 >           where (vshere, vsrest) = splitAt (length (conParams c)) vs
-
 
 
 > myForall :: [Sort] -> ([AST] -> Z3 AST) -> Z3 AST
@@ -71,50 +78,131 @@ Also does some initial assertions.
 >   uncurry (mkForall []) (unzip symbs) res 
 
 
-> data Z3Env = Z3Env {nextName :: Int, boolSort :: Sort, intSort :: Sort, adtSort :: Sort, conFuns :: ConMap (FuncDecl,[Sort]), symVars :: IntMap AST}
+
+> type ConFun = (FuncDecl,[(Sort,FuncDecl)])
+> conFunSorts :: ConFun -> [Sort]
+> conFunSorts = fst . unzip . snd
+
+> data Z3Env = Z3Env {nextName :: Int, boolSort :: Sort, intSort :: Sort, adtSort :: Sort, conFuns :: ConMap ConFun, symVars :: IntMap AST}
 
 > pathsZ3 :: Z3Env -> ExecutionTree -> String -> Int -> Z3 ()
 > pathsZ3 _    _       s stop | stop <= 0  = return ()
+> pathsZ3 _    (Exp (SCon c [])) s stop | c == cFalse    = do
+>     liftIO $ do 
+>         putStrLn "\nCounterexample!" 
+>         putStrLn $ s ++ " ==> False"
+>     (r,Just ()) <- withModel ((>>= (liftIO . putStrLn)) . showModel)
+>     return ()
 > pathsZ3 _    (Exp e) s stop              = liftIO $ putStrLn $ s ++ " ==> " ++ ppSymValue' e
-> pathsZ3 env (NewSymVar n t e) s stop    = do
+> pathsZ3 env (NewSymVar n t e) s stop     = do
 >  (v,ast) <- declareVar env (n,t)
 >  pathsZ3 env{symVars = IM.insert v ast (symVars env)} e s stop
 > pathsZ3 env (Fork dt e cs w) s stop     
 >   | isBoolType dt  = do 
->         ast <- symValueZ3 env e
->         let assertBoolCon :: (Constructor, ExecutionTree) -> Z3 ()
->             assertBoolCon (c,ex) 
->               | fromBool c = local (assertCnstr ast >> whenSat (re ex (s ++ " && "++ppSymValue' e) (stop - 1)))
->               | otherwise  = local (mkNot ast >>= assertCnstr >> whenSat (re ex (s ++ " && "++ppSymValue' e) (stop - 1)))
->         mapM_ assertBoolCon (map (\(c,f) -> (c, f [])) cs)
->         -- Deal with wildcard pattern here!
->           
->   | isIntType dt   = error "Pattern matching on integers not yet supported"
->   | otherwise      = do
->          ast <- symValueZ3 env e
->          let assertCon :: (Constructor, [ExecutionTree] -> ExecutionTree) -> Z3 ()
->              assertCon (c,ex) = do
->                let (cf,cSorts) = conFuns env c
->                    nVars       = length cSorts
->                    newNext     = nextName env + nVars
->                    newNames    = [nextName env..newNext-1]
->                newVars <- mapM (uncurry declareSort) (zip cSorts newNames)
->                let varAsts = map snd newVars
->                    env'    = env{nextName = newNext, symVars = IM.union (IM.fromList newVars) (symVars env)}
->                -- return ()
->                app  <- mkApp cf varAsts
->                ast' <- mkEq ast app
->                assertCnstr ast'
->                whenSat (pathsZ3 env' (ex $ map mkExecTree newNames) (s ++ " && " ++conName c ++ " ~ " ++ ppSymValue' e) (stop-1)) 
->                -- whenSat (re ex (s ++ " && "++conName c ++ " ~ " ++ ppSymValue' e) (stop - 1)))
->          mapM_ (local . assertCon) cs
->          -- Deal with wildcard pattern here!
+>     ast <- assertProjs env e
+>     let assertBoolCon :: (Constructor, ExecutionTree) -> Z3 ()
+>         assertBoolCon (c,ex) 
+>           | fromBool c =  local (assertCnstr ast >> whenSat (re ex (s ++ " && "++ppSymValue' e) (stop - 1)))
+>           | otherwise  = local (mkNot ast >>= assertCnstr >> whenSat (re ex (s ++ " && not "++ppSymValue' e) (stop - 1)))
+>     mapM_ assertBoolCon (map (\(c,f) -> (c, f [])) cs)
+>     -- TODO: Deal with wildcard pattern here!
+>
+>   | isIntType dt    = error "Pattern matching on integers not yet supported"
+> {-
+>   | SCon c vs <- e, Just exf <- lookup c cs, length (conParams c) == 0 =  do
+>     pathsZ3 env (exf []) s (stop-1)
+>   | SCon c vs <- e, Just exf <- lookup c cs = do
+>     asts <- mapM (symValueZ3 env) vs
+>     let cs@(cf,cps) = conFuns env c
+>         nVars       = length cps
+>         newNext     = nextName env + nVars
+>         newNames    = [nextName env..newNext-1]
+>     newVars <- sequence [declareVarSort s nn | ((s,p),nn) <- zip cps newNames]
+>     let varAsts = map snd newVars
+>         env'    = env{nextName = newNext, symVars = IM.union (IM.fromList newVars) (symVars env)}
+>     astEqs  <- mapM (uncurry mkEq) (zip asts varAsts) >>= mkAnd
+>     assertCnstr astEqs
+>     app    <- mkApp cf varAsts
+>     mapM (assertProj app) (zip (map snd cps) varAsts)
+>     let ex = exf $ map mkExecTree newNames
+>     whenSat (pathsZ3 env' ex (s ++ " &&& " ++conName c ++ " " ++ unwords (map (("x"++).show) newNames) ++ " = " ++ ppSymValue' e) (stop-1)) 
+>-}
+>   | otherwise       = do
+>     ast <- assertProjs env e
+>     let assertCon :: (Constructor, [ExecutionTree] -> ExecutionTree) -> Z3 ()
+>         assertCon cex@(c,exf) = do
+>           let cs@(cf,cps) = conFuns env c
+>               nVars       = length cps
+>               newNext     = nextName env + nVars
+>               newNames    = [nextName env..newNext-1]
+>           newVars <- sequence [declareVarSort s nn | ((s,p),nn) <- zip cps newNames]
+>           let varAsts = map snd newVars
+>               env'    = env{nextName = newNext, symVars = IM.union (IM.fromList newVars) (symVars env)}
+>           app    <- mkApp cf varAsts
+>           astEq  <- mkEq ast app
+>           assertCnstr astEq
+>           mapM (assertProj app) (zip (map snd cps) varAsts)
+>           let ex = exf $ map mkExecTree newNames
+>           whenSat (pathsZ3 env' ex (s ++ " && " ++conName c ++ " " ++ unwords (map (("x"++).show) newNames) ++ " = " ++ ppSymValue' e) (stop-1)) 
+>     mapM_ (local . assertCon) cs
+>     -- TODO: Deal with wildcard pattern here!
 >   where
 >     re = pathsZ3 env
 >   
 >
 
 > mkExecTree n = Exp (SFVar n (error "mkExecTree: Why would I need a type here?"))
+
+
+Asserts e.g. that head (Cons x xs) = x
+By asserting this whenever we pattern match on a Cons value (for the tail as well), we 
+assert injectivity of Cons (by giving it a partial inverse) without using universal quantification.
+
+For the example above we would do assertProj (Cons x xs) (head, x)
+
+> assertProj :: AST -> (FuncDecl,AST) -> Z3 ()
+> assertProj app (fd, var) = do
+>   ast <- mkApp fd [app] >>= mkEq var
+>   assertCnstr ast
+
+Assert that all constructor applications in a SymValue are injective, and return the AST corresponding to the SymValue.
+
+Probably this repeats a lot of work when the same SymValue appears in several Forks.
+
+> assertProjs :: Z3Env -> SymValue -> Z3 AST
+> assertProjs env@Z3Env{conFuns = cfs, symVars = vars} sv0 = go sv0 where
+>   go (SCon c vs) | c == cTrue || c == cFalse = if fromBool c then mkTrue else mkFalse
+>   go (SCon c vs) = do
+>     asts <- mapM go vs
+>     let (cf,cps) = cfs c
+>     ast <- mkApp cf asts
+>     mapM (assertProj ast) (zip (map snd cps) asts)
+>     return ast
+>   go (SFVar n pt)  = return $ vars ! n
+>   go (SInt i)      = mkInt i
+>   go (SEq v1 v2)   = do
+>    x1 <- go v1
+>    x2 <- go v2
+>    mkEq x1 x2
+>   go (SLt v1 v2)   = do
+>    x1 <- go v1
+>    x2 <- go v2
+>    mkLt x1 x2
+>   go (SAdd v1 v2)  = do
+>    x1 <- go v1
+>    x2 <- go v2
+>    mkAdd [x1, x2]
+>   go (SMul v1 v2)  = do
+>    x1 <- go v1
+>    x2 <- go v2
+>    mkMul [x1, x2]
+>   go (SApp v1 v2)  = do
+>    x1 <- symFunZ3 env v1
+>    x2 <- go v2
+>    mkApp x1 [x2] -- This will be difficult to implement for partial functions
+>   go (SFun f _)    = error "symValueZ3 of SFun"
+>  
+
 
 >
 > local :: Z3 a -> Z3 a
@@ -124,28 +212,6 @@ Also does some initial assertions.
 >   pop 1
 >   return a
 > 
-
->  -- let v1 = freeSVars e1
->  --    undeclared = v1 `IM.difference` vars
->  -- newdecls <- mapM (declareVar intSort) $ IM.assocs undeclared
->  -- let vars'      = vars `IM.union` IM.fromList newdecls
->  --    s' = s ++ "\n" ++ newdecls
->  {- ast <- symValueZ3 vars e1
->  push
->  assertCnstr ast
->  whenSat $ re e2 (s ++ " && "++ppSymValue' e1) vars (stop - 1)
->  pop 1
->  ast' <- mkNot ast
->  assertCnstr ast'
->  whenSat $ re e3 (s ++ " && not "++ppSymValue' e1) vars (stop - 1)
->  where
->    re = pathsZ3 intSort -}
-
-
-  assertCon :: Constructor -> AST
-  assertCon (Constructor{con
-
-
 
 > whenSat :: Z3 () -> Z3 ()
 > whenSat m = do
@@ -158,46 +224,40 @@ Also does some initial assertions.
 > resToBool Undef = error $ "resToBool: Undef"
 
 > declareVar :: Z3Env -> (Int, DataType) -> Z3 (Int, AST)
-> declareVar env (n, t)     | isIntType  t = declareSort (intSort env) n
->                           | isBoolType t = declareSort (boolSort env) n
->                           | otherwise    = declareSort (adtSort env) n 
+> declareVar env (n, t)     | isIntType  t = declareVarSort (intSort env) n
+>                           | isBoolType t = declareVarSort (boolSort env) n
+>                           | otherwise    = declareVarSort (adtSort env) n 
 
-> declareSort :: Sort -> Int -> Z3 (Int, AST)
-> declareSort s n = do
+> declareVarSort :: Sort -> Int -> Z3 (Int, AST)
+> declareVarSort s n = do
 >   x <- mkIntSymbol n
 >   c <- mkConst x s
 >   return (n,c)
 
-> symValueZ3 :: Z3Env -> SymValue -> Z3 AST
-> symValueZ3 env@Z3Env{symVars = vars, conFuns = cfs} sv = go sv where
->  go :: SymValue -> Z3 AST
->  go (SFVar n pt)  = return $ vars ! n
->  go (SInt i)      = mkInt i
->  go (SCon c vs)   = do
->    xs <- mapM go vs
->    mkApp (fst $ cfs c) xs
->  go (SEq v1 v2)   = do
->    x1 <- go v1
->    x2 <- go v2
->    mkEq x1 x2
->  go (SLt v1 v2)   = do
->    x1 <- go v1
->    x2 <- go v2
->    mkLt x1 x2
->  go (SAdd v1 v2)  = do
->    x1 <- go v1
->    x2 <- go v2
->    mkAdd [x1, x2]
->  go (SMul v1 v2)  = do
->    x1 <- go v1
->    x2 <- go v2
->    mkMul [x1, x2]
->  go (SApp v1 v2)  = do
->    x1 <- symFunZ3 env v1
->    x2 <- go v2
->    mkApp x1 [x2] -- This will be difficult to implement for partial functions
->  go (SFun f _)    = error "symValueZ3 of SFun"
-
 > symFunZ3 :: Z3Env -> SymValue -> Z3 FuncDecl
 > symFunZ3 Z3Env{} sv = error "symFunZ3 not implemented yet"
 
+
+
+
+
+{-
+
+> -- Causes Z3 to loop :(
+> mkInj ::ConMap ConFun -> Constructor -> Z3 ()
+> mkInj cm c = case cm c of
+>   (_,[])      -> return ()
+>   cf@(ca,_)  -> do
+>      fa <- myForall (ss ++ ss) f
+>      assertCnstr fa 
+>      where ss = conFunSorts cf
+>            f vs = do 
+>              app1 <- mkApp ca vsa
+>              app2 <- mkApp ca vsb
+>              lhs <- mkEq app1 app2
+>              eqs <- mkEq (head vsa) (head vsb) >>= return . return -- sequence $ zipWith mkEq vsa vsb
+>              rhs <- mkAnd eqs
+>              mkImplies lhs rhs
+>              where (vsa, vsb) = splitAt (length ss) vs
+
+-}
