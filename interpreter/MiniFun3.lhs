@@ -13,15 +13,15 @@
 > data PExp a =
 >     EVar a
 >   | EInt Int
->   | EBin Op
+>   | EBin Op (PExp a) (PExp a)
 >   | ELet (a -> PExp a) (a -> PExp a)
 >   | ELam (a -> PExp a)
 >   | EApp (PExp a) (PExp a)
 >   | ECon Constructor      
 >   | ECase (PExp a) [(String, [a] -> PExp a)] 
 
-> ebin :: Op -> PExp a -> PExp a -> PExp a
-> ebin op e1 e2 = EApp (EApp (EBin op) e1) e2
+> -- ebin :: Op -> PExp a -> PExp a -> PExp a
+> -- ebin op e1 e2 = EApp (EApp (EBin op) e1) e2
 
 > econ :: Constructor -> [PExp a] -> PExp a
 > econ c = foldl EApp (ECon c) 
@@ -37,7 +37,7 @@
 > eval :: PExp Value -> Value
 > eval (EVar v)         = v
 > eval (EInt i)         = VInt i
-> eval (EBin op)        = VFun (\v1 -> VFun (\v2 -> buildOp op v1 v2))
+> eval (EBin op e1 e2)  = buildOp op (eval e1) (eval e2) -- VFun (\v1 -> VFun (\v2 -> buildOp op v1 v2))
 > eval (ECon (name,n))  = gen n (\xs -> VCon name xs)
 > eval (ELet f g)       = let v = eval (f v) in eval (g v) 
 > eval (ELam f)         = VFun (eval . f)
@@ -63,14 +63,18 @@
 >  | Fork SymValue [(String, [ExecutionTree] -> ExecutionTree)]
 >  | SFun (ExecutionTree -> ExecutionTree) 
 
+-- SFun (\t1 -> SFun (\t2 -> treeApply (valApply (SBin op) t1) t2))
+
 > seval :: PExp ExecutionTree -> ExecutionTree
-> seval (EVar e)          = e
-> seval (EInt x)          = Exp (SInt x)
-> seval (ECon (name,n))   = sgen n (\xs -> foldr treeApply (Exp (SCon (name,n))) xs)
-> seval (EBin op)         = SFun (\t1 -> SFun (\t2 -> treeApply (valApply (SBin op) t1) t2))
-> seval (ELam f)          = SFun (seval . f)
-> seval (ELet f g)        = let v = seval (f v) in seval (g v)
-> seval (EApp e1 e2)      = treeApply (seval e1) (seval e2)                                                      
+> seval (EVar e)           = e
+> seval (EInt x)           = Exp (SInt x)
+> seval (ECon (name,n))    = sgen n (\xs -> foldr treeApply (Exp (SCon (name,n))) xs)
+> seval (EBin op e1 e2)    = treeApply (valApply (SBin op) (seval e1)) (seval e2) 
+> seval (ELam f)           = SFun (seval . f)
+> seval (ELet f g)         = let v = seval (f v) in seval (g v)
+> seval (EApp e1 e2)       = treeApply (seval e1) (seval e2)
+> seval (ECase e clauses)  = undefined (seval e) -- propagate t (seval e) (map (\(s,c) -> (s, seval . c)) clauses)
+>
 > sgen 0 f = f []
 > sgen n f = SFun (\x -> sgen (n-1) (\xs -> f (x:xs)))
 
@@ -83,6 +87,12 @@
 > valApply s (Exp e)        = Exp (SApp s (Exp e))
 > valApply s (SFun f)       = Exp (SApp s (SFun f))
 > valApply s1 (Fork s2 cs)  = Fork s2 [ (c,\l -> valApply s1 (f l)) | (c,f) <- cs]
+
+> propagate :: ExecutionTree -> [(Constructor, [ExecutionTree] -> ExecutionTree)] -> ExecutionTree
+> propagate = undefined 
+
+> -- propagate (Exp e) es        = Fork e es 
+> -- propagate (Fork e es) es'   = Fork e [(s, \l -> propagate (f l) es') | (s,f) <- es] 
 
 
 > {-
