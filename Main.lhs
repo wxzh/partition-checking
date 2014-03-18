@@ -419,26 +419,26 @@ Template for some rules:
 
 \ba{lc}
 
-%%\multicolumn{2}{l}{\myruleform{t_1 \oplus t_2 \Downarrow t_3}} \\ \\
-%%
-%%  (\texttt{M-Val}) & 
-%%\myirule{}{
-%%            s_1 \oplus s_2 \Downarrow s_1 \oplus s_2
-%%} \\ \\
-%%
-%%  (\texttt{M-Fork1}) & 
-%%\myirule{
-%%t_i \oplus t \Downarrow t'_i
-%%}{
-%%           \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I} \oplus t \Downarrow \texttt{case}\;s\;\texttt{of}\;[p_%%i\arrow t'_i]_{i\in I}
-%%} \\ \\
+\multicolumn{2}{l}{\myruleform{t_1 \oplus t_2 \Downarrow t_3}} \\ \\
 
-%%  (\texttt{M-Fork2}) & 
-%%\myirule{
-%%t \oplus t_i \Downarrow t'_i
-%%}{
-%%           t \oplus \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I} \Downarrow \texttt{case}\;s\;\texttt{of}\;[p_%%i\arrow t'_i]_{i\in I}
-%%} \\ \\
+  (\texttt{M-Val}) & 
+\myirule{}{
+            s_1 \oplus s_2 \Downarrow s_1 \oplus s_2
+} \\ \\
+
+  (\texttt{M-Fork1}) & 
+\myirule{
+t_i \oplus t \Downarrow t'_i
+}{
+           \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I} \oplus t \Downarrow \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t'_i]_{i\in I}
+} \\ \\
+
+  (\texttt{M-Fork2}) & 
+\myirule{
+t \oplus t_i \Downarrow t'_i
+}{
+           t \oplus \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I} \Downarrow \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t'_i]_{i\in I}
+} \\ \\
 
 
 
