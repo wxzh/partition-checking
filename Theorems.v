@@ -92,7 +92,10 @@ Definition ptheorem (e : Exp) : Prop :=
 
 Definition program := If0 Var (Lit 0) (Lit 1).
 
+Definition program2 := If0 program Var (Lit 3).
+
 Eval compute in ptheorem program.
+Eval compute in ptheorem program2.
 
 Lemma t : ptheorem program.
 unfold ptheorem.
