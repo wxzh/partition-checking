@@ -251,8 +251,8 @@ Template for some rules:
                          &&&\texttt{let}\;f = \lambda x. e_1\;\texttt{in}\;e_2 \mid \texttt{case}\;e\;\texttt{of}\;[p_i\arrow e_i]_{i\in I} \\
     \textbf{Patterns} & p & ::= & x \mid C~\overline{x} \\ 
     \textbf{Values} & v & ::= & c \mid C_n\; \overline{v} \mid \lambda x . e  \\
-    \textbf{Symbolic Values} & s & ::= & \alpha \mid c \mid \oplus \mid C_n \mid s\;t   \\ 
-    \textbf{Execution Trees} & t & ::= & s \mid \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I} \mid \lambda \alpha . t \\
+    \textbf{Symbolic Values} & s & ::= & \alpha \mid c \mid s_1 \oplus s_2 \mid C_n \mid s\;s \mid \lambda x . e   \\ 
+    \textbf{Execution Trees} & t & ::= & s \mid \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I} \mid \forall \alpha . t \\
 
 \ea
 \\ \\
