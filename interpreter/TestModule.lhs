@@ -12,7 +12,10 @@
 
 Prelude, where types are defined
 
->   rec (tList, [cons, nill]) <- newData [("(:)",[tInt,tList]),("[]",[])]
+>   rec (tList, [cons, nill]) <- newData [("(:)",[tInt,tList])
+>                                        ,("[]",[])]
+>   (tMayBool, [nothing, just]) <- newData [("Nothing",[])
+>                                          ,("Just",[tBool])]
 >   -- (tTriple, [cTriple,cNoTriple]) <- newData [("Triple",[tList,tInt,tBool,tInt]), ("NoTriple",[])]
 >   -- tEitherLN <- newData [("Left", [tInt]),("",[tInt])]
 
@@ -20,7 +23,7 @@ Prelude, where types are defined
 
 >   let listLam f = tList *\ f -- Lambdas with [Int] parameters
 >   let 
->     toList :: (a -> PExp b c) -> [a] -> PExp b c
+>     toList :: (a -> PExp b) -> [a] -> PExp b
 >     toList f []      = ECon nill []
 >     toList f (x:xs)  = ECon cons [f x, toList f xs]
 
@@ -41,6 +44,7 @@ Core functions
 >     -- a *==> b = implies *$ a *$ b
 >     p *==> q = eIf p q eTrue
 >
+>     p *?=> q = eIf p (ECon just [q]) (ECon nothing [])
 >     enot a = eIf a eFalse eTrue
 
 
@@ -135,13 +139,13 @@ These functions have not yet been rewritten to the new format.
 >         ]
 >
 >     prop_insertSorted = listLam $ \xs -> nLam $ \x -> 
->       (sorted *$ xs) *==> (sorted *$ (insert *$ x *$ xs))
+>       (sorted *$ xs) *?=> (sorted *$ (insert *$ x *$ xs))
 >
 
 Export list is duplicated here.
 
->   return (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion, isCons, fromTo, foldList, sorted, prop_fromToSorted, insert, prop_insertSorted, (*==>))
-> (        (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion, isCons, fromTo, foldList, sorted, prop_fromToSorted, insert, prop_insertSorted, (*==>))
+>   return (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion, isCons, fromTo, foldList, sorted, prop_fromToSorted, insert, prop_insertSorted, (*==>), just)
+> (        (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion, isCons, fromTo, foldList, sorted, prop_fromToSorted, insert, prop_insertSorted, (*==>), just)
 >      ,types1) = runNames module1
 
 > testFact = eval (EApp fact (EInt 10))
@@ -164,5 +168,5 @@ Export list is duplicated here.
 
 > z3Prop_FromTo = testZ3 (prop_fromToSorted,types1)
 
-> z3Prop_Insert = testZ3 (prop_insertSorted, types1)
+> z3Prop_Insert = testZ3T (prop_insertSorted, types1) (filterTarget just defaultTarget)
 

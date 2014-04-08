@@ -9,8 +9,23 @@
 > import MiniFun2
 > import DataTypes
 
-> testZ3 :: (PExp ExecutionTree Void,[DataType]) -> Int -> IO ()
-> testZ3 (e,dts) n = evalZ3 $ do
+
+> testZ3 e = testZ3T e defaultTarget
+
+> defaultTarget s (SCon c _) | c == cFalse    = do
+>     liftIO $ do 
+>         putStrLn "\nCounterexample!" 
+>         putStrLn $ s ++ " ==> False"
+>     (r,Just ()) <- withModel ((>>= (liftIO . putStrLn)) . showModel)
+>     return ()
+> defaultTarget s e = liftIO $ putStrLn $ s ++ " ==> " ++ ppSymValue' e 
+
+> filterTarget c t' s v@(SCon c' _) | c == c' = liftIO (putStrLn "") >> t' s v
+> filterTarget _ _  _ _                       = liftIO (putStr ".")
+
+
+> testZ3T :: (PExp ExecutionTree,[DataType]) -> (String -> SymValue -> Z3 ()) -> Int -> IO ()
+> testZ3T (e,dts) targetCon n = evalZ3 $ do
 >   int <- mkIntSort 
 >   bool <- mkBoolSort
 >   adtSym <- mkStringSymbol "adtSort"
@@ -22,6 +37,7 @@
 >                   , intSort = int, boolSort = bool, adtSort = adt
 >                   , conFuns = cfs
 >                   , symVars = IM.empty
+>                   , target  = targetCon
 >                   }
 >   pathsZ3 env ex "True" n
 > 
@@ -56,6 +72,8 @@ Also does some initial assertions.
 >                | isIntType d   = int
 >                | otherwise     = adt
 
+Assert that constructors are distinct
+
 > mkPrelude :: ConMap ConFun -> DataType -> Z3 ()
 > mkPrelude cm dt = do
 >   ast <- myForall allSorts (\vars -> mkCon vars cons >>= mkDistinct)
@@ -78,22 +96,24 @@ Also does some initial assertions.
 >   uncurry (mkForall []) (unzip symbs) res 
 
 
+A ConFun is a constructor function declaration and, sorts for the constructor parameters and a projection function declaration for each parameter.
 
 > type ConFun = (FuncDecl,[(Sort,FuncDecl)])
 > conFunSorts :: ConFun -> [Sort]
 > conFunSorts = fst . unzip . snd
 
-> data Z3Env = Z3Env {nextName :: Int, boolSort :: Sort, intSort :: Sort, adtSort :: Sort, conFuns :: ConMap ConFun, symVars :: IntMap AST}
+> data Z3Env = Z3Env {nextName :: Int
+>                    , boolSort :: Sort
+>                    , intSort :: Sort, adtSort :: Sort
+>                    , conFuns :: ConMap ConFun
+>                    , symVars :: IntMap AST
+>                    , target :: String -> SymValue -> Z3 ()
+>                    }
 
 > pathsZ3 :: Z3Env -> ExecutionTree -> String -> Int -> Z3 ()
 > pathsZ3 _    _       s stop | stop <= 0  = return ()
-> pathsZ3 _    (Exp (SCon c [])) s stop | c == cFalse    = do
->     liftIO $ do 
->         putStrLn "\nCounterexample!" 
->         putStrLn $ s ++ " ==> False"
->     (r,Just ()) <- withModel ((>>= (liftIO . putStrLn)) . showModel)
->     return ()
-> pathsZ3 _    (Exp e) s stop              = liftIO $ putStrLn $ s ++ " ==> " ++ ppSymValue' e
+> pathsZ3 env (Exp e) s stop               = target env s e
+> -- pathsZ3 _    (Exp e) s stop              = liftIO $ putStr $ "."
 > pathsZ3 env (NewSymVar n t e) s stop     = do
 >  (v,ast) <- declareVar env (n,t)
 >  pathsZ3 env{symVars = IM.insert v ast (symVars env)} e s stop
@@ -143,7 +163,7 @@ Also does some initial assertions.
 >           assertCnstr astEq
 >           mapM (assertProj app) (zip (map snd cps) varAsts)
 >           let ex = exf $ map mkExecTree newNames
->           whenSat (pathsZ3 env' ex (s ++ " && " ++conName c ++ " " ++ unwords (map (("x"++).show) newNames) ++ " = " ++ ppSymValue' e) (stop-1)) 
+>           whenSat (pathsZ3 env' ex (s ++ " && " ++ ppSymValue' e ++ " = " ++ conName c ++ " " ++ unwords (map (("x"++).show) newNames)) (stop-1)) 
 >     mapM_ (local . assertCon) cs
 >     -- TODO: Deal with wildcard pattern here!
 >   where

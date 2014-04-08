@@ -12,23 +12,19 @@ Using PHOAS to represent variable binding
 
 Need to represent primitives in a better way?
 
-> -- Empty type for saying 'no free variables'
-> data Void
-
-> data PExp a b =
->     EFVar b 
->   | EBVar a
+> data PExp a =
+>     EBVar a
 >   | EInt Int
->   | EEq (PExp a b) (PExp a b)
->   | ELt (PExp a b) (PExp a b)
->   | EAdd (PExp a b) (PExp a b)
->   | EMul (PExp a b) (PExp a b)
->   | ELet (a -> PExp a b) (a -> PExp a b)
->   | ELam (a -> PExp a b) DataType
->   | EApp (PExp a b) (PExp a b)
+>   | EEq (PExp a) (PExp a)
+>   | ELt (PExp a) (PExp a)
+>   | EAdd (PExp a) (PExp a)
+>   | EMul (PExp a) (PExp a)
+>   | ELet (a -> PExp a) (a -> PExp a)
+>   | ELam (a -> PExp a) DataType
+>   | EApp (PExp a) (PExp a)
 >   -- Adding case analysis and constructors
->   | ECon Constructor [PExp a b]                -- constructor
->   | ECase DataType (PExp a b) [(Constructor, [a] -> PExp a b)] (Maybe (PExp a b))     -- case expression
+>   | ECon Constructor [PExp a]                -- constructor
+>   | ECase DataType (PExp a) [(Constructor, [a] -> PExp a)] (Maybe (PExp a))     -- case expression
 
           ECase t e [c,e1] (Just e2) 
           ~ 
@@ -38,10 +34,9 @@ Need to represent primitives in a better way?
 
 
 
-> pprExp :: Show b => PExp String b -> String
+> pprExp :: PExp String -> String
 > pprExp = go (map (('x':) . show) [0..]) where
 >  go vrs@(vr:vrs') e0 = case e0 of
->    EFVar b             -> show b
 >    EBVar a             -> a
 >    EInt n              -> show n
 >    EEq e1 e2           -> binop e1 "==" e2
@@ -61,7 +56,7 @@ Need to represent primitives in a better way?
 
 Some convenient functions and instances for writing expressions.
 
-> instance Num (PExp a b) where
+> instance Num (PExp a) where
 >   (+)    = EAdd
 >   (*)    = EMul
 >   a - b  = a + b * EInt (-1) -- EInt needs to be here or GHC will "optimize" this into an infinite loop.
@@ -77,16 +72,16 @@ Some convenient functions and instances for writing expressions.
 
 Default case expressions, infers the type from the constructors matched.
 
-> cases :: PExp a b -> [(Constructor, [PExp a b] -> PExp a b)] -> PExp a b
+> cases :: PExp a -> [(Constructor, [PExp a] -> PExp a)] -> PExp a
 > cases e alts = caseInf e alts Nothing
 >
-> casesW :: PExp a b -> [(Constructor, [PExp a b] -> PExp a b)] -> PExp a b -> PExp a b
+> casesW :: PExp a -> [(Constructor, [PExp a] -> PExp a)] -> PExp a -> PExp a
 > casesW e alts w = caseInf e alts (Just w) 
 > 
 > caseInf e alts@((c,_):_) wild = ECase (conType c) e wrapped wild
 >   where wrapped = [(c,f . map var) |(c,f) <- alts] 
 > caseInf _ [] _                = error "caseInf: empty case" -- Should be translated into "EError" or such?
-> (*->) :: Constructor -> ([PExp a b] -> PExp a b) -> (Constructor, [PExp a b] -> PExp a b)
+> (*->) :: Constructor -> ([PExp a] -> PExp a) -> (Constructor, [PExp a] -> PExp a)
 > (*->) = (,) 
 
 > infixl 1 *$
@@ -99,12 +94,12 @@ Default case expressions, infers the type from the constructors matched.
 > nLam b = tInt *\ b
 > bLam b = tBool *\ b
 
-> lets :: (PExp a b -> PExp a b) -> (PExp a b -> PExp a b) -> PExp a b
+> lets :: (PExp a -> PExp a) -> (PExp a -> PExp a) -> PExp a
 > lets f g = ELet (f . var) (g . var)
 
 For defining recursive functions
 
-> function :: (PExp a b -> PExp a b) -> PExp a b
+> function :: (PExp a -> PExp a) -> PExp a
 > function f = lets f id
 
 
@@ -112,8 +107,7 @@ Standard (big-step) interpreter
 
 > data Value = VInt Int | VFun (Value -> Value) | VCon Constructor [Value]
 >
-> eval :: PExp Value Void -> Value
-> eval (EFVar _)       = error "ops! Free variable"
+> eval :: PExp Value -> Value
 > eval (EBVar v)       = v
 > eval (EInt x)        = VInt x
 > eval (EEq e1 e2)     =
@@ -178,7 +172,7 @@ Applies program to symbolic variables
 >   (e,n') -> (NewSymVar n t e,n')
 > exec' e                n = (e,n)
 
-> seval :: PExp ExecutionTree Void -> ExecutionTree
+> seval :: PExp ExecutionTree -> ExecutionTree
 > --seval (EFVar x)          = Exp (SFVar x)
 > seval (EBVar e)          = e
 > seval (EInt x)           = Exp (SInt x)
