@@ -159,6 +159,7 @@ Symbolic interpreter
 > data ExecutionTree = Exp SymValue 
 >                    | Fork DataType SymValue [(Constructor, [ExecutionTree] -> ExecutionTree)] (Maybe ExecutionTree)
 >                    | NewSymVar Int DataType ExecutionTree -- Not fully implemented yet...
+>                    | Bomb String -- Crash
 
 > data Op = ADD | MUL | LT | EQ
 

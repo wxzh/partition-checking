@@ -2,6 +2,7 @@
 
 > import Control.Monad (ap, liftM2, when, mplus)
 > import Control.Monad.IO.Class (liftIO)
+> import Data.List ((\\))
 > import Data.IntMap (IntMap, (!))
 > import qualified Data.IntMap as IM
 > import Z3.Monad
@@ -150,6 +151,7 @@ For example, for Cons :: Int -> [Int] -> [Int], it is (cons :: Int -> ADT -> ADT
 >     whenSat (pathsZ3 env' ex (s ++ " &&& " ++conName c ++ " " ++ unwords (map (("x"++).show) newNames) ++ " = " ++ ppSymValue' e) (stop-1)) 
 >-}
 >   | otherwise       = do
+>     -- Assert projections for all constructors in the expression on which the case analysis is performed.
 >     ast <- assertProjs env e
 >     let assertCon :: (Constructor, [ExecutionTree] -> ExecutionTree) -> Z3 ()
 >         assertCon cex@(c,exf) = do
@@ -162,12 +164,19 @@ For example, for Cons :: Int -> [Int] -> [Int], it is (cons :: Int -> ADT -> ADT
 >               env'    = env{nextName = newNext, symVars = IM.union (IM.fromList newVars) (symVars env)}
 >           app    <- mkApp cf varAsts
 >           astEq  <- mkEq ast app
+>           -- Assert equality of the matched expression and the constructor function application from a specific case branch.
 >           assertCnstr astEq
+>           -- Assert injectivity of the constructor function from a specific case branch.
 >           mapM (assertProj app) (zip (map snd cps) varAsts)
 >           let ex = exf $ map mkExecTree newNames
 >           whenSat (pathsZ3 env' ex (s ++ " && " ++ ppSymValue' e ++ " = " ++ conName c ++ " " ++ unwords (map (("x"++).show) newNames)) (stop-1)) 
 >     mapM_ (local . assertCon) cs
 >     -- TODO: Deal with wildcard pattern here!
+>     let w' = maybe (Bomb "Pattern match failure") id w
+>     case dataCons dt \\ map fst cs of
+>       []  -> return ()
+>       [x] -> assertCon (x, const w')
+>       xs  -> undefined
 >   where
 >     re = pathsZ3 env
 >   

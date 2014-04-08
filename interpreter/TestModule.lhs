@@ -141,11 +141,14 @@ These functions have not yet been rewritten to the new format.
 >     prop_insertSorted = listLam $ \xs -> nLam $ \x -> 
 >       (sorted *$ xs) *?=> (sorted *$ (insert *$ x *$ xs))
 >
+>     isNil = listLam $ \l -> casesW l
+>                 [nill *-> \_        -> eTrue
+>                 ] eFalse
 
 Export list is duplicated here.
 
->   return (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion, isCons, fromTo, foldList, sorted, prop_fromToSorted, insert, prop_insertSorted, (*==>), just)
-> (        (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion, isCons, fromTo, foldList, sorted, prop_fromToSorted, insert, prop_insertSorted, (*==>), just)
+>   return (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion, isCons, fromTo, foldList, sorted, prop_fromToSorted, insert, prop_insertSorted, isNil, (*==>), just)
+> (        (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion, isCons, fromTo, foldList, sorted, prop_fromToSorted, insert, prop_insertSorted, isNil, (*==>), just)
 >      ,types1) = runNames module1
 
 > testFact = eval (EApp fact (EInt 10))
@@ -170,3 +173,4 @@ Export list is duplicated here.
 
 > z3Prop_Insert = testZ3T (prop_insertSorted, types1) (filterTarget just defaultTarget)
 
+> z3_isNil = testZ3 (isNil, types1)
