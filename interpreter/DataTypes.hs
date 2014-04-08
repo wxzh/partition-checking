@@ -28,7 +28,8 @@ module1 = do
 
 
 
--- | Constructor Identifiers
+-- | Constructor Identifiers.
+-- All constructors, even of different datatypes, have unique ids.
 type ConID = Int
 
 -- | Data Type Identifiers
@@ -91,7 +92,7 @@ instance Eq DataType where
   _          == DataFun _ _ = False
   a == b = idOf a == idOf b -- Currently doesn't work for functions.
 
-
+-- | Create an arrow type
 (~>) :: DataType -> DataType -> DataType
 x ~> DataFun xs r = DataFun (x:xs) r
 x ~> y            = DataFun [x] y

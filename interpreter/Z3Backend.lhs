@@ -96,18 +96,20 @@ Assert that constructors are distinct
 >   uncurry (mkForall []) (unzip symbs) res 
 
 
-A ConFun is a constructor function declaration and, sorts for the constructor parameters and a projection function declaration for each parameter.
+ConFun is stored in a ConMap, and used for generating assertions when we encounter a case expression. A ConFun is a constructor function declaration, sorts for the constructor parameters, and a projection function declaration for each parameter.
+
+For example, for Cons :: Int -> [Int] -> [Int], it is (cons :: Int -> ADT -> ADT, [(Int, head :: ADT -> Int), (ADT, tail :: ADT -> ADT]).
 
 > type ConFun = (FuncDecl,[(Sort,FuncDecl)])
 > conFunSorts :: ConFun -> [Sort]
 > conFunSorts = fst . unzip . snd
 
-> data Z3Env = Z3Env {nextName :: Int
+> data Z3Env = Z3Env {nextName  :: Int
 >                    , boolSort :: Sort
->                    , intSort :: Sort, adtSort :: Sort
->                    , conFuns :: ConMap ConFun
->                    , symVars :: IntMap AST
->                    , target :: String -> SymValue -> Z3 ()
+>                    , intSort  :: Sort, adtSort :: Sort
+>                    , conFuns  :: ConMap ConFun
+>                    , symVars  :: IntMap AST
+>                    , target   :: String -> SymValue -> Z3 ()
 >                    }
 
 > pathsZ3 :: Z3Env -> ExecutionTree -> String -> Int -> Z3 ()
