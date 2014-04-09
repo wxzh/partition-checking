@@ -4,6 +4,7 @@
 > import Control.Monad.IO.Class (liftIO)
 > import Data.List ((\\))
 > import Data.IntMap (IntMap, (!))
+> import Control.Applicative
 > import qualified Data.IntMap as IM
 > import Z3.Monad
 
@@ -51,9 +52,10 @@ Also does some initial assertions.
 > preludeZ3 sorts dts = do
 >   cm <- mkConMapM (conFun sorts) dts
 >   mapM_ (mkPrelude cm) dts
->   -- mapM_ (mkInj cm) (concatMap dataCons dts)
 >   showContext >>= liftIO . putStrLn
 >   return cm
+
+Introduce a constructor by declaring an uninterpreted function for it, and a projection function for each parameter.
 
 > conFun :: (Sort,Sort,Sort) -> Constructor -> Z3 ConFun
 > conFun (bool,int,adt) c = do
@@ -73,7 +75,7 @@ Also does some initial assertions.
 >                | isIntType d   = int
 >                | otherwise     = adt
 
-Assert that constructors are distinct
+Assert that constructors are distinct.
 
 > mkPrelude :: ConMap ConFun -> DataType -> Z3 ()
 > mkPrelude cm dt = do
@@ -90,6 +92,7 @@ Assert that constructors are distinct
 
 
 > myForall :: [Sort] -> ([AST] -> Z3 AST) -> Z3 AST
+> myForall []    f = f [] 
 > myForall sorts f = do 
 >   symbs <- mapM (\(s,n) -> mkIntSymbol n >>= \smb -> return (smb,s)) $ zip sorts [0..]
 >   bound <- mapM (\(s,n) -> mkBound n s) $ zip sorts [0..]
@@ -131,25 +134,11 @@ For example, for Cons :: Int -> [Int] -> [Int], it is (cons :: Int -> ADT -> ADT
 >     -- TODO: Deal with wildcard pattern here!
 >
 >   | isIntType dt    = error "Pattern matching on integers not yet supported"
-> {-
->   | SCon c vs <- e, Just exf <- lookup c cs, length (conParams c) == 0 =  do
->     pathsZ3 env (exf []) s (stop-1)
->   | SCon c vs <- e, Just exf <- lookup c cs = do
->     asts <- mapM (symValueZ3 env) vs
->     let cs@(cf,cps) = conFuns env c
->         nVars       = length cps
->         newNext     = nextName env + nVars
->         newNames    = [nextName env..newNext-1]
->     newVars <- sequence [declareVarSort s nn | ((s,p),nn) <- zip cps newNames]
->     let varAsts = map snd newVars
->         env'    = env{nextName = newNext, symVars = IM.union (IM.fromList newVars) (symVars env)}
->     astEqs  <- mapM (uncurry mkEq) (zip asts varAsts) >>= mkAnd
->     assertCnstr astEqs
->     app    <- mkApp cf varAsts
->     mapM (assertProj app) (zip (map snd cps) varAsts)
->     let ex = exf $ map mkExecTree newNames
->     whenSat (pathsZ3 env' ex (s ++ " &&& " ++conName c ++ " " ++ unwords (map (("x"++).show) newNames) ++ " = " ++ ppSymValue' e) (stop-1)) 
->-}
+> 
+>   -- Todo: introduce new variables?
+>   | SCon c vs <- e, Just exf <- lookup c cs <|> fmap const w <|> Just (\_ -> mkError "Pattern match failure")                            = do
+>     ast <- assertProjs env e
+>     pathsZ3 env (exf $ map Exp vs) s (stop-1)
 >   | otherwise       = do
 >     -- Assert projections for all constructors in the expression on which the case analysis is performed.
 >     ast <- assertProjs env e
@@ -170,13 +159,33 @@ For example, for Cons :: Int -> [Int] -> [Int], it is (cons :: Int -> ADT -> ADT
 >           mapM (assertProj app) (zip (map snd cps) varAsts)
 >           let ex = exf $ map mkExecTree newNames
 >           whenSat (pathsZ3 env' ex (s ++ " && " ++ ppSymValue' e ++ " = " ++ conName c ++ " " ++ unwords (map (("x"++).show) newNames)) (stop-1)) 
+>     let assertCons :: ([Constructor], ExecutionTree) -> Z3 ()
+>         assertCons cex@(cons,ex) = do
+>           let (cfs,cpss) = unzip $ map (conFuns env) cons
+>               nVars       = map length cpss
+>               newNext     = nextName env + (sum (map length cpss))
+>               newNames    = listNames cpss (nextName env)
+>               
+>           newVars <- sequence $ map sequence $ [[declareVarSort s nn | ((s,p),nn) <- zip cps nns]|
+>                                     (cps, nns) <- zip cpss newNames]
+>           let varAsts = map (map snd) newVars
+>               env'    = env{nextName = newNext, symVars = IM.union (IM.fromList $ concat newVars) (symVars env)}
+>           apps    <- sequence $ zipWith mkApp cfs varAsts
+>           astEq  <- mapM (mkEq ast) apps
+>           disj   <- mkOr astEq
+>           -- Assert equality of the matched expression and the constructor function application from a specific case branch.
+>           assertCnstr disj
+>           -- Assert injectivity of the constructor functions.
+>           sequence [mapM (assertProj app) (zip (map snd cps) varAst)|(app,cps,varAst) <- zip3 apps cpss varAsts]
+>           whenSat (pathsZ3 env' ex (s ++ " && " ++ ppSymValue' e ++ " `elem` " ++ show (map conName cons)) (stop-1)) 
+> 
 >     mapM_ (local . assertCon) cs
->     -- TODO: Deal with wildcard pattern here!
->     let w' = maybe (Bomb "Pattern match failure") id w
+>     -- Wild card patterns
+>     let w' = maybe (mkError "Pattern match failure") id w
 >     case dataCons dt \\ map fst cs of
 >       []  -> return ()
 >       [x] -> assertCon (x, const w')
->       xs  -> undefined
+>       xs  -> assertCons (xs, w')
 >   where
 >     re = pathsZ3 env
 >   
@@ -184,6 +193,12 @@ For example, for Cons :: Int -> [Int] -> [Int], it is (cons :: Int -> ADT -> ADT
 
 > mkExecTree n = Exp (SFVar n (error "mkExecTree: Why would I need a type here?"))
 
+> mkError s = Exp (SError s)
+
+> listNames :: [[a]] -> Int -> [[Int]]
+> listNames xss k = map (\(x,y) -> [x..y-1]) $ tail $ scanl (\(x,y) z -> (y,y+z)) (k,k) (map length xss)
+
+(Int,Int) -> Int -> 
 
 Asserts e.g. that head (Cons x xs) = x
 By asserting this whenever we pattern match on a Cons value (for the tail as well), we 
@@ -272,8 +287,7 @@ Probably this repeats a lot of work when the same SymValue appears in several Fo
 
 
 
-{-
-
+> {-
 > -- Causes Z3 to loop :(
 > mkInj ::ConMap ConFun -> Constructor -> Z3 ()
 > mkInj cm c = case cm c of
@@ -290,5 +304,20 @@ Probably this repeats a lot of work when the same SymValue appears in several Fo
 >              rhs <- mkAnd eqs
 >              mkImplies lhs rhs
 >              where (vsa, vsb) = splitAt (length ss) vs
-
--}
+> -}
+>  {- | SCon c vs <- e, Just exf <- lookup c cs = do
+>     asts <- mapM (symValueZ3 env) vs
+>     let cs@(cf,cps) = conFuns env c
+>         nVars       = length cps
+>         newNext     = nextName env + nVars
+>         newNames    = [nextName env..newNext-1]
+>     newVars <- sequence [declareVarSort s nn | ((s,p),nn) <- zip cps newNames]
+>     let varAsts = map snd newVars
+>         env'    = env{nextName = newNext, symVars = IM.union (IM.fromList newVars) (symVars env)}
+>     astEqs  <- mapM (uncurry mkEq) (zip asts varAsts) >>= mkAnd
+>     assertCnstr astEqs
+>     app    <- mkApp cf varAsts
+>     mapM (assertProj app) (zip (map snd cps) varAsts)
+>     let ex = exf $ map mkExecTree newNames
+>     whenSat (pathsZ3 env' ex (s ++ " &&& " ++conName c ++ " " ++ unwords (map (("x"++).show) newNames) ++ " = " ++ ppSymValue' e) (stop-1)) 
+>-}

@@ -147,6 +147,7 @@ Symbolic interpreter
 >   | SApp SymValue SymValue
 >   | SCon Constructor [SymValue]
 >   | SFun (ExecutionTree -> ExecutionTree) DataType -- just store the function
+>   | SError String 
 
 > type Pattern = ((String,Int), [Int]) -- Now unused?
 
@@ -159,7 +160,7 @@ Symbolic interpreter
 > data ExecutionTree = Exp SymValue 
 >                    | Fork DataType SymValue [(Constructor, [ExecutionTree] -> ExecutionTree)] (Maybe ExecutionTree)
 >                    | NewSymVar Int DataType ExecutionTree -- Not fully implemented yet...
->                    | Bomb String -- Crash
+>                    -- | Bomb String -- Crash
 
 > data Op = ADD | MUL | LT | EQ
 
@@ -332,6 +333,7 @@ Substitution of free variables in ExecutionTree
 > ppSymValue (SLt v1 v2)  n  = "(" ++ ppSymValue v1 n ++ " < " ++ ppSymValue v2 n ++ ")"
 > ppSymValue (SApp v1 v2) n  = ppSymValue v1 n ++ " " ++ ppSymValue v2 n
 > ppSymValue (SFun f t)   n  = "<<function>>" -- "(\\x" ++ show n ++ ". " ++ f (Exp (SFVar n t)) ++ ")" -- <<function>>"
+> ppSymValue (SError s)   n  = ("error " ++ show s)
 > pars s = "(" ++ s ++ ")"
 
 

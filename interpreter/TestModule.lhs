@@ -16,6 +16,10 @@ Prelude, where types are defined
 >                                        ,("[]",[])]
 >   (tMayBool, [nothing, just]) <- newData [("Nothing",[])
 >                                          ,("Just",[tBool])]
+>   (tOrdering, [lt,eq,gt]) <- newData [("LT",[])
+>                                      ,("EQ",[])
+>                                      ,("GT",[])]
+> 
 >   -- (tTriple, [cTriple,cNoTriple]) <- newData [("Triple",[tList,tInt,tBool,tInt]), ("NoTriple",[])]
 >   -- tEitherLN <- newData [("Left", [tInt]),("",[tInt])]
 
@@ -38,6 +42,9 @@ Core functions
 >     eFalse = ECon cFalse []
 >     eNill  = ECon nill []
 >     eCons x xs = ECon cons [x,xs]
+>     eLT = ECon lt []
+>     eEQ = ECon eq []
+>     eGT = ECon gt []
 >
 >
 >     implies = bLam $ \p -> bLam $ \q -> eIf p q eTrue
@@ -145,10 +152,30 @@ These functions have not yet been rewritten to the new format.
 >                 [nill *-> \_        -> eTrue
 >                 ] eFalse
 
+>     compareInt = function $ \compareInt -> nLam $ \x -> nLam $ \y -> 
+>                eIf (x *< y) 
+>                  eLT
+>                  (eIf (y *< x)
+>                    eGT
+>                    eEQ)
+
+>
+>     ehead = listLam $ \xs -> cases xs 
+>                 [cons *-> \[x,_]   -> x
+>                 ]
+>
+
+>     eqInt = function $ \eqInt -> nLam $ \x -> nLam $ \y -> casesW (compareInt *$ x *$ y)
+>                 [eq *-> \_ -> eTrue] eFalse
+
 Export list is duplicated here.
 
->   return (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion, isCons, fromTo, foldList, sorted, prop_fromToSorted, insert, prop_insertSorted, isNil, (*==>), just)
-> (        (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion, isCons, fromTo, foldList, sorted, prop_fromToSorted, insert, prop_insertSorted, isNil, (*==>), just)
+>   return (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion, isCons, fromTo, 
+>           foldList, sorted, prop_fromToSorted, insert, prop_insertSorted, 
+>           isNil, ehead, eqInt, (*==>), just)
+> (        (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion, isCons, fromTo, 
+>           foldList, sorted, prop_fromToSorted, insert, prop_insertSorted, 
+>           isNil, ehead, eqInt, (*==>), just)
 >      ,types1) = runNames module1
 
 > testFact = eval (EApp fact (EInt 10))
@@ -173,4 +200,8 @@ Export list is duplicated here.
 
 > z3Prop_Insert = testZ3T (prop_insertSorted, types1) (filterTarget just defaultTarget)
 
-> z3_isNil = testZ3 (isNil, types1)
+> z3IsNil = testZ3 (isNil, types1)
+
+> z3Head  = testZ3 (ehead, types1) -- Detects pattern match failure
+
+> z3EqInt = testZ3 (eqInt, types1)
