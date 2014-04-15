@@ -331,7 +331,7 @@ Substitution of free variables in ExecutionTree
 > ppSymValue (SAdd v1 v2) n  = "(" ++ ppSymValue v1 n ++ " + " ++ ppSymValue v2 n ++ ")"
 > ppSymValue (SMul v1 v2) n  = "(" ++ ppSymValue v1 n ++ " * " ++ ppSymValue v2 n ++ ")"
 > ppSymValue (SLt v1 v2)  n  = "(" ++ ppSymValue v1 n ++ " < " ++ ppSymValue v2 n ++ ")"
-> ppSymValue (SApp v1 v2) n  = ppSymValue v1 n ++ " " ++ ppSymValue v2 n
+> ppSymValue (SApp v1 v2) n  = "(" ++ ppSymValue v1 n ++ " " ++ ppSymValue v2 n ++ ")"
 > ppSymValue (SFun f t)   n  = "<<function>>" -- "(\\x" ++ show n ++ ". " ++ f (Exp (SFVar n t)) ++ ")" -- <<function>>"
 > ppSymValue (SError s)   n  = ("error " ++ show s)
 > pars s = "(" ++ s ++ ")"

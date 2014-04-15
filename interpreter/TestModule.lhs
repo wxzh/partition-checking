@@ -12,7 +12,7 @@
 
 Prelude, where types are defined
 
->   rec (tList, [cons, nill]) <- newData [("(:)",[tInt,tList])
+>   rec (tList, [cons, nil]) <- newData [("(:)",[tInt,tList])
 >                                        ,("[]",[])]
 >   (tMayBool, [nothing, just]) <- newData [("Nothing",[])
 >                                          ,("Just",[tBool])]
@@ -28,7 +28,7 @@ Prelude, where types are defined
 >   let listLam f = tList *\ f -- Lambdas with [Int] parameters
 >   let 
 >     toList :: (a -> PExp b) -> [a] -> PExp b
->     toList f []      = ECon nill []
+>     toList f []      = ECon nil []
 >     toList f (x:xs)  = ECon cons [f x, toList f xs]
 
 >     toIntList = toList EInt
@@ -40,7 +40,7 @@ Core functions
 
 >     eTrue  = ECon cTrue []
 >     eFalse = ECon cFalse []
->     eNill  = ECon nill []
+>     eNil  = ECon nil []
 >     eCons x xs = ECon cons [x,xs]
 >     eLT = ECon lt []
 >     eEQ = ECon eq []
@@ -60,14 +60,14 @@ Other functions
 >   let 
 >     isCons = listLam $ \l -> cases l
 >                [cons *-> \[x,xs] -> cases l
->                  [nill *-> \[]     -> eTrue -- Unreachable
+>                  [nil *-> \[]     -> eTrue -- Unreachable
 >                  ,cons *-> \[y,ys] -> eIf (x *== y)
 >                                           eTrue
 >                                           eFalse  -- (Should be) Unreachable
 >                  ]
->                ,nill *-> \_        -> cases l 
+>                ,nil *-> \_        -> cases l 
 >                  [cons *-> \[x,xs] -> eTrue -- Unreachable
->                  ,nill *-> \[]     -> eFalse
+>                  ,nil *-> \[]     -> eFalse
 >                  ]
 >                ]
 > 
@@ -96,42 +96,58 @@ Other functions
 
 >     sumList = lets (\sumList -> tList *\ (\l -> 
 >       cases l [
->         (nill, \_ -> 0),
+>         (nil, \_ -> 0),
 >         (cons, \(x:xs:_) -> x + (sumList *$ xs))
 >       ])) id
 
 These functions have not yet been rewritten to the new format.
 
 >     funType = tInt ~> tInt
->     prop_map_fusion =  funType *\ \f -> funType *\ \g -> listLam $ \xs -> 
+>     prop_map_fusion =  funType *\ \f -> funType *\ \g -> listLam $ \xs -> constraint $
 >           (mapList *$ f *$ (mapList *$ g *$ xs))
 >           *==
 >           (mapList *$ (listLam (\x -> f *$ (g *$ x))) *$ xs)
 
+>     prop_map_fusion' =  funType *\ \f -> funType *\ \g -> listLam $ \xs -> constraint $ listEq *$
+>           (mapList *$ f *$ (mapList *$ g *$ xs)) *$
+>           (mapList *$ (listLam (\x -> f *$ (g *$ x))) *$ xs)
+
 >     mapList = function $ \mapList -> funType *\ \f -> listLam $ \l -> 
 >       cases l [
->         nill *-> \_        -> eNill,
+>         nil *-> \_        -> eNil,
 >         cons *-> \(x:xs:_) -> eCons (f *$ x) (mapList *$ f *$ xs)
 >       ]
+
+>     -- less clever list comparison (uses symbolic equality for elements only)
+>     listEq = function $ \listEq -> listLam $ \xs -> listLam $ \ys -> cases xs [
+>       nil  *-> \_         -> isNil *$ ys,
+>       cons *-> \[x,xs']   -> cases ys [
+>         nil  *-> \_          -> eFalse,
+>         cons *-> \[y,ys']    -> (x *== y) *&& (listEq *$ xs' *$ ys')]]
+
+>     e1 *&& e2 = eIf e1 e2 eFalse
+
+>     -- For turning a result into a constraint
+>     constraint x = eIf x eTrue eFalse
 
 > -- :: (Int -> Int -> Int) -> [Int] -> Int -> Int
 >     foldList = function $ \foldList -> funType *\ \f -> listLam $ \l -> nLam $ \b -> 
 >       cases l [
->         nill *-> \_        -> b,
+>         nil *-> \_        -> b,
 >         cons *-> \(x:xs:_) -> f *$ x *$ (foldList *$ f *$ xs *$ b)
 >       ]
 
 >
 >     fromTo = function $ \fromTo -> nLam $ \from -> nLam $ \to -> 
->       eIf (to *< from) eNill (eCons from (fromTo *$ (from+1) *$ to))
+>       eIf (to *< from) eNil (eCons from (fromTo *$ (from+1) *$ to))
 >
 >
 >     -- This relies on injectivity (it pattern matches on the same value several times)
 >     sorted = function $ \sorted -> listLam $ \l -> 
 >       cases l 
->         [nill *-> \_        -> eTrue
+>         [nil *-> \_        -> eTrue
 >         ,cons *-> \[x,xs]   -> cases xs 
->           [nill *-> \_       -> eTrue
+>           [nil *-> \_       -> eTrue
 >           ,cons *-> \[y,xys] -> eIf (y *< x) eFalse (sorted *$ (eCons y xys))
 >           ]
 >         ]
@@ -141,7 +157,7 @@ These functions have not yet been rewritten to the new format.
 >
 >     insert = function $ \insert -> nLam $ \x -> listLam $ \xs -> 
 >       cases xs 
->         [ nill *-> \_ -> eCons x eNill
+>         [ nil *-> \_ -> eCons x eNil
 >         , cons *-> \[x',xs'] -> eIf (x *< x') (eCons x xs) (eCons x' (insert *$ x *$ xs'))
 >         ]
 >
@@ -149,7 +165,7 @@ These functions have not yet been rewritten to the new format.
 >       (sorted *$ xs) *?=> (sorted *$ (insert *$ x *$ xs))
 >
 >     isNil = listLam $ \l -> casesW l
->                 [nill *-> \_        -> eTrue
+>                 [nil *-> \_        -> eTrue
 >                 ] eFalse
 
 >     compareInt = function $ \compareInt -> nLam $ \x -> nLam $ \y -> 
@@ -170,10 +186,12 @@ These functions have not yet been rewritten to the new format.
 
 Export list is duplicated here.
 
->   return (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion, isCons, fromTo, 
+>   return (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion,prop_map_fusion', 
+>           isCons, fromTo, 
 >           foldList, sorted, prop_fromToSorted, insert, prop_insertSorted, 
 >           isNil, ehead, eqInt, (*==>), just)
-> (        (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion, isCons, fromTo, 
+> (        (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion,prop_map_fusion', 
+>           isCons, fromTo, 
 >           foldList, sorted, prop_fromToSorted, insert, prop_insertSorted, 
 >           isNil, ehead, eqInt, (*==>), just)
 >      ,types1) = runNames module1
@@ -185,8 +203,6 @@ Export list is duplicated here.
 
 > evalIsCons = eval (isCons *$ (fromTo *$ 11 *$ 10))
 > z3IsCons = testZ3 (isCons,types1)
-
-> z3_2 = testZ3 (prop_map_fusion,types1) -- Not working yet
 
 > eFromTo    = fromTo *$ 10 *$ 13
 > evalFromTo = eval eFromTo
@@ -205,3 +221,10 @@ Export list is duplicated here.
 > z3Head  = testZ3 (ehead, types1) -- Detects pattern match failure
 
 > z3EqInt = testZ3 (eqInt, types1)
+
+> -- Map fusion with symbolic list equality.
+> z3MapFusionS = testZ3 (prop_map_fusion,types1)
+
+> -- Map fusion without symbolic list equality.
+> z3MapFusion = testZ3 (prop_map_fusion',types1)
+

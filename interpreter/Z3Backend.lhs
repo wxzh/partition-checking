@@ -38,7 +38,7 @@
 >       env = Z3Env {nextName = nVars+1
 >                   , intSort = int, boolSort = bool, adtSort = adt
 >                   , conFuns = cfs
->                   , symVars = IM.empty
+>                   , symVars = IM.empty, funVars = IM.empty
 >                   , target  = targetCon
 >                   }
 >   pathsZ3 env ex "True" n
@@ -108,11 +108,10 @@ For example, for Cons :: Int -> [Int] -> [Int], it is (cons :: Int -> ADT -> ADT
 > conFunSorts :: ConFun -> [Sort]
 > conFunSorts = fst . unzip . snd
 
-> data Z3Env = Z3Env {nextName  :: Int
->                    , boolSort :: Sort
->                    , intSort  :: Sort, adtSort :: Sort
+> data Z3Env = Z3Env { nextName  :: Int
+>                    , boolSort, intSort, adtSort :: Sort
 >                    , conFuns  :: ConMap ConFun
->                    , symVars  :: IntMap AST
+>                    , symVars  :: IntMap AST, funVars :: IntMap FuncDecl
 >                    , target   :: String -> SymValue -> Z3 ()
 >                    }
 
@@ -121,8 +120,11 @@ For example, for Cons :: Int -> [Int] -> [Int], it is (cons :: Int -> ADT -> ADT
 > pathsZ3 env (Exp e) s stop               = target env s e
 > -- pathsZ3 _    (Exp e) s stop              = liftIO $ putStr $ "."
 > pathsZ3 env (NewSymVar n t e) s stop     = do
->  (v,ast) <- declareVar env (n,t)
->  pathsZ3 env{symVars = IM.insert v ast (symVars env)} e s stop
+>  ast <- declareVar env (n,t)
+>  let env' = either (\x -> env{symVars = IM.insert n x (symVars env)})
+>                    (\x -> env{funVars = IM.insert n x (funVars env)})
+>                    ast
+>  pathsZ3 env' e s stop
 > pathsZ3 env (Fork dt e cs w) s stop     
 >   | isBoolType dt  = do 
 >     ast <- assertProjs env e
@@ -216,7 +218,7 @@ Assert that all constructor applications in a SymValue are injective, and return
 Probably this repeats a lot of work when the same SymValue appears in several Forks.
 
 > assertProjs :: Z3Env -> SymValue -> Z3 AST
-> assertProjs env@Z3Env{conFuns = cfs, symVars = vars} sv0 = go sv0 where
+> assertProjs env@Z3Env{conFuns = cfs, symVars = vars, funVars = funs} sv0 = go sv0 where
 >   go (SCon c vs) | c == cTrue || c == cFalse = if fromBool c then mkTrue else mkFalse
 >   go (SCon c vs) = do
 >     asts <- mapM go vs
@@ -242,13 +244,16 @@ Probably this repeats a lot of work when the same SymValue appears in several Fo
 >    x1 <- go v1
 >    x2 <- go v2
 >    mkMul [x1, x2]
->   go (SApp v1 v2)  = do
->    x1 <- symFunZ3 env v1
->    x2 <- go v2
->    mkApp x1 [x2] -- This will be difficult to implement for partial functions
+>   go (SApp v1 v2)  = symFun v1 [v2]
 >   go (SFun f _)    = error "symValueZ3 of SFun"
->  
-
+>
+>   symFun :: SymValue -> [SymValue] -> Z3 AST 
+>   symFun (SApp v1 v2) vs = symFun v1 (v2:vs)
+>   symFun (SFVar n _) vs  = do 
+>     ps <- mapM go vs
+>     let f = funs ! n
+>     mkApp f ps 
+>   symFun _ _             = error "assertProjs.symFun: type error"
 
 >
 > local :: Z3 a -> Z3 a
@@ -269,10 +274,10 @@ Probably this repeats a lot of work when the same SymValue appears in several Fo
 > resToBool Unsat = False
 > resToBool Undef = error $ "resToBool: Undef"
 
-> declareVar :: Z3Env -> (Int, DataType) -> Z3 (Int, AST)
-> declareVar env (n, t)     | isIntType  t = declareVarSort (intSort env) n
->                           | isBoolType t = declareVarSort (boolSort env) n
->                           | otherwise    = declareVarSort (adtSort env) n 
+> declareVar :: Z3Env -> (Int, DataType) -> Z3 (Either AST FuncDecl)
+> declareVar env (n, DataFun{dataParams = ps, dataResult = r})  
+>              = fmap Right (declareSymFun n (map (dataToSort env) ps) (dataToSort env r))
+> declareVar env (n, t)      = fmap (Left . snd) $ declareVarSort (dataToSort env t) n
 
 > declareVarSort :: Sort -> Int -> Z3 (Int, AST)
 > declareVarSort s n = do
@@ -280,11 +285,16 @@ Probably this repeats a lot of work when the same SymValue appears in several Fo
 >   c <- mkConst x s
 >   return (n,c)
 
-> symFunZ3 :: Z3Env -> SymValue -> Z3 FuncDecl
-> symFunZ3 Z3Env{} sv = error "symFunZ3 not implemented yet"
+> dataToSort :: Z3Env -> DataType -> Sort
+> dataToSort env t | isIntType  t      = intSort env
+>                  | isFunctionType t  = error "dataToSort: Function type"
+>                  | isBoolType t      = boolSort env
+>                  | otherwise         = adtSort env
 
-
-
+> declareSymFun :: Int -> [Sort] -> Sort -> Z3 FuncDecl
+> declareSymFun n ss r = do
+>   f <- mkIntSymbol n 
+>   mkFuncDecl f ss r
 
 
 > {-

@@ -68,6 +68,9 @@ isIntType _       = False
 isBoolType DataBool = True
 isBoolType _        = False
 
+isFunctionType DataFun{} = True
+isFunctionType _         = False
+
 litBool b = if b then cTrue else cFalse
 litInt    = IntegerLit
 
@@ -83,7 +86,7 @@ fromBool _                                         = error "fromBool: not a Bool
 data DataType = DataType {dataId :: DataID, dataCons :: [Constructor]} -- , tyVars :: [DataType]
               | DataInt
               | DataBool
-              | DataFun [DataType] DataType
+              | DataFun {dataParams :: [DataType], dataResult :: DataType}
   deriving Show
 instance Eq DataType where
   DataFun xs q == b = case b of
