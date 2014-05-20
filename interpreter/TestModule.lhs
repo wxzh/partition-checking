@@ -126,6 +126,8 @@ These functions have not yet been rewritten to the new format.
 >         cons *-> \[y,ys']    -> (x *== y) *&& (listEq *$ xs' *$ ys')]]
 
 >     e1 *&& e2 = eIf e1 e2 eFalse
+>     e1 *|| e2 = eIf e1 eTrue e2
+>     not e1 = eIf e1 eFalse eTrue
 
 >     -- For turning a result into a constraint
 >     constraint x = eIf x eTrue eFalse
@@ -142,6 +144,11 @@ These functions have not yet been rewritten to the new format.
 >       eIf (to *< from) eNil (eCons from (fromTo *$ (from+1) *$ to))
 >
 >
+>     triangleType = function $ \triangleType -> nLam $ \a -> nLam $ \b -> nLam $ \c -> 
+>       eIf (not (c *< a + b)) (EInt 0)
+>           (eIf ((a *== b) *&& (b *== c)) (EInt 1) 
+>                (eIf ((a *== b) *|| (b *== c)) (EInt 2) (EInt 3)))
+
 >     -- This relies on injectivity (it pattern matches on the same value several times)
 >     sorted = function $ \sorted -> listLam $ \l -> 
 >       cases l 
@@ -152,6 +159,7 @@ These functions have not yet been rewritten to the new format.
 >           ]
 >         ]
 >
+>     prop_tri_rev = nLam $ \a ->nLam $ \b ->nLam $ \c ->triangleType *$ a *$ b *$ c *== triangleType *$ c *$ b *$ a
 >
 >     prop_fromToSorted = nLam $ \n -> nLam $ \m -> sorted *$ (fromTo *$ n *$ m)
 >
@@ -186,11 +194,11 @@ These functions have not yet been rewritten to the new format.
 
 Export list is duplicated here.
 
->   return (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion,prop_map_fusion', 
+>   return (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion,prop_map_fusion',prop_tri_rev, 
 >           isCons, fromTo, 
 >           foldList, sorted, prop_fromToSorted, insert, prop_insertSorted, 
 >           isNil, ehead, eqInt, (*==>), just)
-> (        (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion,prop_map_fusion', 
+> (        (eIf, eTrue, eFalse, fact,prop_p3,prop_map_fusion,prop_map_fusion',prop_tri_rev, 
 >           isCons, fromTo, 
 >           foldList, sorted, prop_fromToSorted, insert, prop_insertSorted, 
 >           isNil, ehead, eqInt, (*==>), just)
@@ -228,3 +236,4 @@ Export list is duplicated here.
 > -- Map fusion without symbolic list equality.
 > z3MapFusion = testZ3 (prop_map_fusion',types1)
 
+> z3Tri = testZ3 (prop_tri_rev, types1)
