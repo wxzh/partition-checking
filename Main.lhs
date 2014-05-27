@@ -247,10 +247,10 @@ Template for some rules:
 %%    \mid \forall \alpha. \type \\ 
 %%    \textbf{Type Contexts} & \Gamma & ::= & \epsilon \mid \Gamma, \relation{x}{\type} \\
     \textbf{Expressions} & e & ::=  & x \mid c \mid C_n \mid e_1 \oplus e_2 \mid 
-                         \lambda x . e \mid e_1\;e_2 \\ 
+                         \lambda x . e \mid e_1\;e_2 \mid\\ 
                          &&&\texttt{let}\;f = \lambda x. e_1\;\texttt{in}\;e_2 \mid \texttt{case}\;e\;\texttt{of}\;[p_i\arrow e_i]_{i\in I} \\
     \textbf{Patterns} & p & ::= & x \mid C~\overline{x} \\ 
-    \textbf{Values} & v & ::= & c \mid C_n\; \overline{v} \mid \lambda x . e  \\
+    \textbf{Values} & v & ::= & c \mid C_n\; \overline{v} \mid \langle\lambda x . e,\rho\rangle\\
     \textbf{Symbolic Values} & s & ::= & \alpha \mid c \mid s_1 \oplus s_2 \mid C_n \mid s\;s \mid \lambda x . e   \\ 
     \textbf{Execution Trees} & t & ::= & s \mid \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I} \mid \forall \alpha . t \\
 
@@ -302,7 +302,7 @@ Template for some rules:
   (\texttt{Lam}) & 
 \myirule{
 }{
-           \rho, \lambda x . e \Downarrow \lambda x . e
+           \rho, \lambda x . e \Downarrow \langle\lambda x . e,\rho\rangle
 } \\ \\
 
   (\texttt{Let}) & 
@@ -314,15 +314,15 @@ Template for some rules:
 
   (\texttt{App}) & 
 \myirule{
-           \rho,e_1 \Downarrow \lambda x. e\;\;\; \rho, e_2 \Downarrow v_1\\
-           \rho[x\mapsto v_1],e\Downarrow v\;\;\;
+           \rho,e_1 \Downarrow \langle\lambda x. e,\rho'\rangle\;\;\; \rho, e_2 \Downarrow v_2\\
+           \rho'[x\mapsto v_2],e\Downarrow v\;\;\;
  }{
            \rho,e_1\;e_2 \Downarrow v
 } \\ \\
 
   (\texttt{Cas}) & 
 \myirule{
-           \rho, e \Downarrow v \\
+           \rho, e \Downarrow v \;\;\;
            \rho_i = match\; v\; p_i\;\;\;
            \rho~\rho_i,e_i\Downarrow v_i
  }{
