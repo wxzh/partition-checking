@@ -246,13 +246,13 @@ Template for some rules:
 %%    \textbf{Types} & \type & ::= & \alpha \mid \type \arrow \type 
 %%    \mid \forall \alpha. \type \\ 
 %%    \textbf{Type Contexts} & \Gamma & ::= & \epsilon \mid \Gamma, \relation{x}{\type} \\
-    \textbf{Expressions} & e & ::=  & x \mid c \mid C_n \mid e_1 \oplus e_2 \mid 
+    \textbf{Expressions} & e & ::=  & x \mid c \mid C~\overline{e}\mid e_1 \oplus e_2 \mid 
                          \lambda x . e \mid e_1\;e_2 \mid\\ 
                          &&&\texttt{let}\;f = \lambda x. e_1\;\texttt{in}\;e_2 \mid \texttt{case}\;e\;\texttt{of}\;[p_i\arrow e_i]_{i\in I} \\
     \textbf{Patterns} & p & ::= & x \mid C~\overline{x} \\ 
-    \textbf{Values} & v & ::= & c \mid C_n\; \overline{v} \mid \langle\lambda x . e,\rho\rangle\\
-    \textbf{Symbolic Values} & s & ::= & \alpha \mid c \mid s_1 \oplus s_2 \mid C_n \mid s\;s \mid \lambda x . e   \\ 
-    \textbf{Execution Trees} & t & ::= & s \mid \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I} \mid \forall \alpha . t \\
+    \textbf{Values} & v & ::= & c \mid C~\overline{v} \mid \langle\lambda x . e,\rho\rangle\\
+    \textbf{Symbolic Values} & s & ::= & a \mid c \mid s_1 \oplus s_2 \mid C~\overline{s} \mid s\;s \mid \langle\lambda x . e,\sigma\rangle  \\ 
+    \textbf{Execution Trees} & t & ::= & s \mid \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I}\\
 
 \ea
 \\ \\
@@ -281,16 +281,16 @@ Template for some rules:
             \rho,x \Downarrow \rho(x)
 } \\ \\
 
-  (\texttt{Val}) & 
+  (\texttt{Lit}) & 
 \myirule{}{
             \rho,c \Downarrow c
 } \\ \\
 
   (\texttt{Con}) & 
-\myirule{
+\myirule{          \rho, e_i \Downarrow v_i
+
 }{
-            \rho,C_n \Downarrow \lambda x_1 \ldots \lambda x_n .~C_n~\overline{x}
-} \\ \\
+            \rho,C~\overline{e} \Downarrow C~\overline{v}} \\ \\
 
   (\texttt{Bin}) & 
 \myirule{
@@ -350,46 +350,53 @@ Template for some rules:
             \sigma,x \Downarrow \sigma(x)
 } \\ \\
 
-  (\texttt{Val}) & 
+  (\texttt{Lit}) & 
 \myirule{}{
             \sigma,c \Downarrow c
 } \\ \\
 
-  (\texttt{Lam}) & 
-\myirule{
-          \sigma [x \mapsto \alpha], e \Downarrow t
-}{
-           \sigma, \lambda x . e \Downarrow \lambda \alpha . t
-} \\ \\
+  (\texttt{Con}) & 
+\myirule{          \sigma, e_i \Downarrow t_i
 
-  (\texttt{Let}) & 
-\myirule{
-           \sigma [ x \mapsto \alpha], e_1 \Downarrow t_1 \\
-           \sigma~[f\mapsto \lambda \alpha . t_1], e_2 \Downarrow t_2
- }{
-           \sigma,\texttt{let}\;f = \lambda x . e_1\;\texttt{in}\;e_2\Downarrow t_2
-} \\ \\
+}{
+            \sigma,C~\overline{e} \Downarrow C~\overline{t}} \\ \\
 
   (\texttt{Bin}) & 
 \myirule{
            \sigma,e_1\Downarrow t_1\;\;\;\sigma,e_2\Downarrow t_2 \\
-           \oplus~t_1 \Downarrow t_3 \;\;\; t_3~t_2 \Downarrow t_4
+           t_1 \oplus t_2 \Downarrow t
  }{
-           \sigma,e_1\oplus e_2\Downarrow t_4
+           \sigma,e_1\oplus e_2\Downarrow t
 } \\ \\
 
-  (\texttt{Con}) & 
+  (\texttt{Lam}) & 
 \myirule{
+          
 }{
-            \sigma,C_n \Downarrow \lambda \alpha_1 \ldots \lambda \alpha_n .~C_n~\overline{\alpha}
+           \sigma, \lambda x . e \Downarrow \langle\lambda x . e,\sigma\rangle
 } \\ \\
+
+  (\texttt{Let}) & 
+\myirule{
+%%           \sigma [ x \mapsto a], e_1 \Downarrow t_1 \\
+           \sigma [f\mapsto \lambda x . e_1], e_2 \Downarrow t_2
+ }{
+           \sigma,\texttt{let}\;f = \lambda x . e_1\;\texttt{in}\;e_2\Downarrow t_2
+} \\ \\
+
+
+%  (\texttt{Con}) & 
+%\myirule{
+%}{
+%            \sigma,C_n \Downarrow \lambda \alpha_1 \ldots \lambda \alpha_n .~C_n~\overline{\alpha}
+%} \\ \\
 
   (\texttt{App}) & 
 \myirule{
            \sigma, e_1 \Downarrow t_1\;\;\; \rho, e_2 \Downarrow t_2\\
-           t_1~t_2 \Downarrow t_3
+           t_1~t_2 \Downarrow t
  }{
-           \sigma,e_1\;e_2 \Downarrow t_3
+           \sigma,e_1\;e_2 \Downarrow t
 } \\ \\
 
 
@@ -399,7 +406,7 @@ Template for some rules:
            \sigma, e \Downarrow t_1 \\
          %%  \rho_i = match\; v\; p_i\;\;\;
            \sigma~[\overline{x} \mapsto \overline{\alpha}],e_i\Downarrow t_i \\
-           t_1, [C_i~\overline{\alpha} \arrow t_i] \Downarrow t_2
+           t_1, [C_i~\overline{\alpha} \arrow t_i]_{i\in I} \Downarrow t_2
  }{
            \sigma,\texttt{case}\;e\;\texttt{of}\;[C_i~\overline{x}\arrow e_i]_{i\in I} \Downarrow t_2
 } \\ \\
@@ -450,67 +457,75 @@ t \oplus t_i \Downarrow t'_i
 %%            \alpha~t_1 \Downarrow \alpha~t_1 
 %%} \\ \\
 
-  (\texttt{M-Symbol}) & 
+  (\texttt{M-Other}) & 
 \myirule{
-            s~t_1 \Downarrow t_2
+            s_1~s_2 \Downarrow t
 }{
-            s~t_1 \Downarrow t_2 
+            s_1~s_2 \Downarrow t
 } \\ \\
 
   (\texttt{M-Fun}) & 
-\myirule{
-%%           \sigma [x \mapsto t_1], e \Downarrow t_2
+\myirule{ 
+           \sigma [x \mapsto t_2], e_1 \Downarrow t_1
 }{
-           (\lambda \alpha . t_1)~t_2 \Downarrow t_1 [\alpha \mapsto t_2]
+           \langle\lambda x . e_1,\sigma\rangle~t_2 \Downarrow t_1 
 } \\ \\
 
-  (\texttt{M-Fork}) & 
+  (\texttt{M-Fork1}) & 
 \myirule{
             t_i~t \Downarrow t'_i
 }{
             (\texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I})~t \Downarrow \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t'_i]_{i\in I}
 } \\ \\
 
-\multicolumn{2}{l}{\myruleform{s~t_1 \Downarrow t_2}} \\ \\
+  (\texttt{M-Fork2}) & 
+\myirule{
+            s_1~t_i \Downarrow t'_i
+}{
+            s_1~(\texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I}) \Downarrow \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t'_i]_{i\in I}
+} \\ \\
+
+
+%%\multicolumn{2}{l}{\myruleform{s~t_1 \Downarrow t_2}} \\ \\
 
 %%  (\texttt{M-Var}) & 
 %%\myirule{}{
 %%            s~\alpha \Downarrow s~\alpha 
 %%} \\ \\
 
-  (\texttt{M-Symbol}) & 
-\myirule{}{
-            s_1~s_2 \Downarrow s_1~s_2 
-} \\ \\
+%%  (\texttt{M-Symbol}) & 
+%%\myirule{}{
+%%            s_1~s_2 \Downarrow s_1~s_2 
+%%} \\ \\
 
-  (\texttt{M-Fun}) & 
-\myirule{
-           
-}{
-             s~(\lambda \alpha . t) \Downarrow s~(\lambda \alpha . t)
-} \\ \\
+%%  (\texttt{M-Fun}) & 
+%%\myirule{
+%%           
+%%}{
+%%             s~(\lambda \alpha . t) \Downarrow s~(\lambda \alpha . t)
+%%} \\ \\
 
-  (\texttt{M-Fork}) & 
-\myirule{
-            s_1~t_i \Downarrow t'_i
-}{
-            s_1~(\texttt{case}\;s_2\;\texttt{of}\;[p_i\arrow t_i]_{i\in I}) \Downarrow \texttt{case}\;s_2\;\texttt{of}\;[p_i\arrow t'_i]_{i\in I}
-} \\ \\
 
 
 \multicolumn{2}{l}{\myruleform{t_1, [C_i~\overline{\alpha} \arrow t_i] \Downarrow t_2}} \\ \\
 
-  (\texttt{M-Var}) & 
+  (\texttt{M-Other}) & 
 \myirule{
 }{
-            s, [C_i~\overline{\alpha} \arrow t_i] \Downarrow \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I}
+            s, [p_i\arrow t_i]_{i\in I} \Downarrow \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I}
+} \\ \\
+
+  (\texttt{M-Match}) & 
+\myirule{
+}{
+            C_i~\_, [C_i~\_ \arrow t_i]_{i\in I} \Downarrow t_i
 } \\ \\
 
   (\texttt{M-Fork}) & 
 \myirule{
             t_i~t \Downarrow t'_i
 }{
-            (\texttt{case}\;s_1\;\texttt{of}\;[p_i\arrow t_i]_{i\in I})~[C_i~\overline{\alpha} \arrow t_i] \Downarrow \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t'_i]_{i\in I}
+            (\texttt{case}\;s_1\;\texttt{of}\;[p_i\arrow t_i]_{i\in I})~[C_i~\overline{\alpha} \arrow t_i] \Downarrow \\ \texttt{case}\;s_1\;\texttt{of}\;[p_i\arrow t'_i]_{i\in I}
 } \\ \\
 
 \ea
