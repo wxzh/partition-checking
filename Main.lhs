@@ -251,8 +251,8 @@ Template for some rules:
                          &&&\texttt{let}\;f = \lambda x. e_1\;\texttt{in}\;e_2 \mid \texttt{case}\;e\;\texttt{of}\;[p_i\arrow e_i]_{i\in I} \\
     \textbf{Patterns} & p & ::= & x \mid C~\overline{x} \\ 
     \textbf{Values} & v & ::= & c \mid C~\overline{v} \mid \langle\lambda x . e,\rho\rangle\\
-    \textbf{Symbolic Values} & s & ::= & a \mid c \mid s_1 \oplus s_2 \mid C~\overline{s} \mid s\;s \mid \langle\lambda x . e,\sigma\rangle  \\ 
-    \textbf{Execution Trees} & t & ::= & s \mid \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I}\\
+    \textbf{Symbolic Values} & s & ::= & a \mid c \mid s_1 \oplus s_2 \mid C~\overline{s} \mid s\;s \mid \lambda x . e  \\ 
+    \textbf{Execution Trees} & t & ::= & s \mid \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I} \mid \forall a.t\\
 
 \ea
 \\ \\
@@ -307,9 +307,9 @@ Template for some rules:
 
   (\texttt{Let}) & 
 \myirule{
-           \rho~[f\mapsto \lambda x . e_1], e_2 \Downarrow v
+          \rho, e_1\Downarrow v_1\;\;\; \rho[f\mapsto v_1], e_2 \Downarrow v
  }{
-           \rho,\texttt{let}\;f = \lambda x . e_1\;\texttt{in}\;e_2\Downarrow v
+           \rho,\texttt{let}\;f =  e_1\;\texttt{in}\;e_2\Downarrow v
 } \\ \\
 
   (\texttt{App}) & 
@@ -370,18 +370,18 @@ Template for some rules:
 } \\ \\
 
   (\texttt{Lam}) & 
-\myirule{
+\myirule{\sigma[x\mapsto a], e\Downarrow t
           
 }{
-           \sigma, \lambda x . e \Downarrow \langle\lambda x . e,\sigma\rangle
+           \sigma, \lambda x . e \Downarrow \forall a . t
 } \\ \\
 
   (\texttt{Let}) & 
 \myirule{
-%%           \sigma [ x \mapsto a], e_1 \Downarrow t_1 \\
-           \sigma [f\mapsto \lambda x . e_1], e_2 \Downarrow t_2
+           \sigma, e_1 \Downarrow t_1 \;\;\;
+           \sigma [f\mapsto e_1], e_2 \Downarrow t_2
  }{
-           \sigma,\texttt{let}\;f = \lambda x . e_1\;\texttt{in}\;e_2\Downarrow t_2
+           \sigma,\texttt{let}\;f = e_1\;\texttt{in}\;e_2\Downarrow t_2
 } \\ \\
 
 
@@ -405,7 +405,7 @@ Template for some rules:
 \myirule{
            \sigma, e \Downarrow t_1 \\
          %%  \rho_i = match\; v\; p_i\;\;\;
-           \sigma~[\overline{x} \mapsto \overline{\alpha}],e_i\Downarrow t_i \\
+           \sigma[\overline{x} \mapsto \overline{\alpha}],e_i\Downarrow t_i \\
            t_1, [C_i~\overline{\alpha} \arrow t_i]_{i\in I} \Downarrow t_2
  }{
            \sigma,\texttt{case}\;e\;\texttt{of}\;[C_i~\overline{x}\arrow e_i]_{i\in I} \Downarrow t_2
@@ -457,18 +457,23 @@ t \oplus t_i \Downarrow t'_i
 %%            \alpha~t_1 \Downarrow \alpha~t_1 
 %%} \\ \\
 
-  (\texttt{M-Other}) & 
+  (\texttt{M-Val}) & 
 \myirule{
             s_1~s_2 \Downarrow t
 }{
             s_1~s_2 \Downarrow t
 } \\ \\
 
-  (\texttt{M-Fun}) & 
+  (\texttt{M-Fun1}) & 
 \myirule{ 
-           \sigma [x \mapsto t_2], e_1 \Downarrow t_1
 }{
-           \langle\lambda x . e_1,\sigma\rangle~t_2 \Downarrow t_1 
+           (\forall a . t_1)~t_2 \Downarrow t_1[a\mapsto t_2]
+} \\ \\
+
+  (\texttt{M-Fun2}) & 
+\myirule{
+}{
+            s_1~\forall a.t_1 \Downarrow  s_1~\forall a.t_1
 } \\ \\
 
   (\texttt{M-Fork1}) & 
@@ -484,6 +489,7 @@ t \oplus t_i \Downarrow t'_i
 }{
             s_1~(\texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I}) \Downarrow \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t'_i]_{i\in I}
 } \\ \\
+
 
 
 %%\multicolumn{2}{l}{\myruleform{s~t_1 \Downarrow t_2}} \\ \\
@@ -507,7 +513,7 @@ t \oplus t_i \Downarrow t'_i
 
 
 
-\multicolumn{2}{l}{\myruleform{t_1, [C_i~\overline{\alpha} \arrow t_i] \Downarrow t_2}} \\ \\
+\multicolumn{2}{l}{\myruleform{t_1, [C_i~\overline{\alpha} \arrow t_i]_{i\in I} \Downarrow t_2}} \\ \\
 
   (\texttt{M-Other}) & 
 \myirule{
@@ -515,23 +521,92 @@ t \oplus t_i \Downarrow t'_i
             s, [p_i\arrow t_i]_{i\in I} \Downarrow \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I}
 } \\ \\
 
-  (\texttt{M-Match}) & 
-\myirule{
-}{
-            C_i~\_, [C_i~\_ \arrow t_i]_{i\in I} \Downarrow t_i
-} \\ \\
+%%  (\texttt{M-Match}) & 
+%%\myirule{
+%%}{
+%%            C_i~\_, [C_i~\_ \arrow t_i]_{i\in I} \Downarrow t_i
+%%} \\ \\
 
-  (\texttt{M-Fork}) & 
+  (\texttt{M-Nest}) & 
 \myirule{
-            t_i~t \Downarrow t'_i
 }{
-            (\texttt{case}\;s_1\;\texttt{of}\;[p_i\arrow t_i]_{i\in I})~[C_i~\overline{\alpha} \arrow t_i] \Downarrow \\ \texttt{case}\;s_1\;\texttt{of}\;[p_i\arrow t'_i]_{i\in I}
+            \texttt{case}\;s_1\;\texttt{of}\;[C_i~\overline{\alpha} \arrow t_i]_{i\in I},alts \Downarrow \\ \texttt{case}\;s_1\;\texttt{of}\;[C_i~\overline{\alpha}\arrow \texttt{case}\; t_i\; \texttt{of}\; alts]_{i\in I}
 } \\ \\
 
 \ea
 
 \eda
 }
+
+\figtwocol{f:syntax}{Operational Semantics}{
+\small
+\bda{l}
+
+\textbf{Call-by-value Evaluation}
+\\ \\
+
+\ba{lc}
+\multicolumn{2}{l}{\myruleform{\rho,e\Downarrow v}} \\ \\
+
+  (\texttt{Var}) & 
+\myirule{}{
+            \rho,x \Downarrow \rho(x)
+} \\ \\
+
+  (\texttt{Lit}) & 
+\myirule{}{
+            \rho,c \Downarrow c
+} \\ \\
+
+  (\texttt{Con}) & 
+\myirule{          \rho, e_i \Downarrow v_i
+
+}{
+            \rho,C~\overline{e} \Downarrow C~\overline{v}} \\ \\
+
+  (\texttt{Bin}) & 
+\myirule{
+           \rho,e_1\Downarrow v_1\;\;\;\rho,e_2\Downarrow v_2
+ }{
+           \rho,e_1 \oplus e_2 \Downarrow v_1 \oplus v_2
+} \\ \\
+
+  (\texttt{Lam}) & 
+\myirule{
+}{
+           \rho, \lambda x . e \Downarrow \langle\lambda x . e,\rho\rangle
+} \\ \\
+
+  (\texttt{Let}) & 
+\myirule{
+          \rho, e_1\Downarrow v_1\;\;\; \rho[f\mapsto v_1], e_2 \Downarrow v
+ }{
+           \rho,\texttt{let}\;f =  e_1\;\texttt{in}\;e_2\Downarrow v
+} \\ \\
+
+  (\texttt{App}) & 
+\myirule{
+           \rho,e_1 \Downarrow \langle\lambda x. e,\rho'\rangle\;\;\; \rho, e_2 \Downarrow v_2\\
+           \rho'[x\mapsto v_2],e\Downarrow v\;\;\;
+ }{
+           \rho,e_1\;e_2 \Downarrow v
+} \\ \\
+
+  (\texttt{Cas}) & 
+\myirule{
+           \rho, e \Downarrow v \;\;\;
+           \rho_i = match\; v\; p_i\;\;\;
+           \rho~\rho_i,e_i\Downarrow v_i
+ }{
+           \rho,\texttt{case}\;e\;\texttt{of}\;[p_i\arrow e_i]_{i\in I} \Downarrow v_i
+} \\ \\
+
+\ea
+
+\eda
+}
+
+
 
  
 \section{Related Work}\label{sec:related}
