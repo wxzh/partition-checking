@@ -159,7 +159,7 @@ These functions have not yet been rewritten to the new format.
 >           ]
 >         ]
 >
->     prop_tri_rev = nLam $ \a ->nLam $ \b ->nLam $ \c ->triangleType *$ a *$ b *$ c *== triangleType *$ c *$ b *$ a
+>     prop_tri_rev = nLam $ \a ->nLam $ \b ->nLam $ \c ->(triangleType *$ a *$ b *$ c) *== (triangleType *$ c *$ b *$ a)
 >
 >     prop_fromToSorted = nLam $ \n -> nLam $ \m -> sorted *$ (fromTo *$ n *$ m)
 >
