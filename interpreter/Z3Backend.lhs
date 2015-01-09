@@ -6,7 +6,7 @@
 > import Data.IntMap (IntMap, (!))
 > import Control.Applicative
 > import qualified Data.IntMap as IM
-> import Z3.Monad
+> import Z3.Monad hiding (Z3Env,local)
 
 > import MiniFun2
 > import DataTypes
