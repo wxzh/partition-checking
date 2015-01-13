@@ -292,8 +292,8 @@ Template for some rules:
                          &&&\texttt{let}\;f = \lambda x. e_1\;\texttt{in}\;e_2 \mid \texttt{case}\;e\;\texttt{of}\;[C_i~\overline{x}\arrow e_i]_{i\in I} \\
 %    \textbf{Patterns} & p & ::= & x \mid C~\overline{x} \\ 
     \textbf{Values} & v & ::= & c \mid C~\overline{v} \mid \langle\lambda x . e,\rho\rangle\\
-    \textbf{Symbolic Values} & s & ::= & a \mid c \mid C~\overline{s} \mid o~\overline{s} \mid a\;s  \\ 
-    \textbf{Execution Trees} & t & ::= & s \mid \langle\lambda x . e,\sigma\rangle \mid \texttt{case}\;s\;\texttt{of}\;[C_i~\overline{a}\arrow t_i]_{i\in I} \\ %\mid \forall a.t\\
+    \textbf{Symbolic Values} & s & ::= & a \mid c \mid \langle\lambda x . e,\sigma\rangle \mid C~\overline{s} \mid o~\overline{s} \mid a\;s  \\ 
+    \textbf{Execution Trees} & t & ::= & s \mid \texttt{case}\;s\;\texttt{of}\;[C_i~\overline{a}\arrow t_i]_{i\in I} \\ %\mid \forall a.t\\
 
 \ea
 \\ \\
@@ -406,7 +406,7 @@ Template for some rules:
 
   (\texttt{Prm}) & 
 \myirule{          \sigma, e_i \Downarrow t_i \;\;\;
-                   C\!/\!o~\overline{t}\Downarrow t
+                   (C\!/\!o,\overline{t})\Downarrow_o t
 
 }{
             \sigma,C\!/\!o~\overline{e} \Downarrow t} \\ \\
@@ -436,7 +436,7 @@ Template for some rules:
   (\texttt{App}) & 
 \myirule{
            \sigma, e_1 \Downarrow t_1\;\;\; \rho, e_2 \Downarrow t_2\\
-           t_1~t_2 \Downarrow t
+           (t_1,t_2) \Downarrow_a t
  }{
            \sigma,e_1\;e_2 \Downarrow t
 } \\ \\
@@ -447,8 +447,8 @@ Template for some rules:
 \myirule{
            \sigma, e \Downarrow t_1 \\
          %%  \rho_i = match\; v\; p_i\;\;\;
-           \sigma[\overline{x} \mapsto \overline{\alpha}],e_i\Downarrow t_i \\
-           (t_1,[C_i~\overline{\alpha} \arrow t_i]_{i\in I}) \Downarrow t
+           \sigma[\overline{x} \mapsto \overline{a}],e_i\Downarrow t_i \\
+           (t_1,[C_i~\overline{a} \arrow t_i]_{i\in I}) \Downarrow_c t
  }{
            \sigma,\texttt{case}\;e\;\texttt{of}\;[C_i~\overline{x}\arrow e_i]_{i\in I} \Downarrow t
 } \\ \\
@@ -468,23 +468,23 @@ Template for some rules:
 
 \ba{lc}
 
-\multicolumn{2}{l}{\myruleform{C\!/\!o~\overline{t}\Downarrow t}} \\ \\
+\multicolumn{2}{l}{\myruleform{(C\!/\!o,\overline{t})\Downarrow_o t}} \\ \\
 
-  (\texttt{M-Val}) & 
+  (\texttt{Val}) & 
 \myirule{}{
-            C\!/\!o~\overline{s} \Downarrow C\!/\!o~\overline{s}
+            (C\!/\!o,\overline{s}) \Downarrow_o C\!/\!o~\overline{s}
 } \\ \\
 
-  (\texttt{M-Case}) & 
-\myirule{
-\texttt{case}\;s\;\texttt{of}\;[p_i\arrow C\!/\!o~\overline{s}~t_i~\overline{t}]_{i\in I}\Downarrow t
+  (\texttt{Case}) & 
+\myirule{ (C\!/\!o,\overline{s}~t_i~\overline{t})\Downarrow_o t
+%\texttt{case}\;s\;\texttt{of}\;[p_i\arrow C\!/\!o~\overline{s}~t_i~\overline{t}]_{i\in I}\Downarrow t
 }{
-          C\!/\!o~\overline{s}~(\texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I})~\overline{t} \Downarrow t
+          (C\!/\!o,\overline{s}~(\texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I})~\overline{t}) \Downarrow_o \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t]_{i\in I}
 } \\ \\
 
 
 
-\multicolumn{2}{l}{\myruleform{t_1~t_2 \Downarrow t}} \\ \\
+\multicolumn{2}{l}{\myruleform{(t_1,t_2) \Downarrow_a t}} \\ \\
 
 %%  (\texttt{M-Var}) & 
 %%\myirule{
@@ -492,31 +492,32 @@ Template for some rules:
 %%            \alpha~t_1 \Downarrow \alpha~t_1 
 %%} \\ \\
 
-  (\texttt{M-Val}) & 
+  (\texttt{Var1}) & 
 \myirule{
 }{
-            a~s \Downarrow a~s
+            (a,s) \Downarrow_a a~s
 } \\ \\
 
-  (\texttt{M-Fun}) & 
+  (\texttt{Var2}) & 
+\myirule{
+}{
+            (a,\texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I}) \Downarrow_a \texttt{case}\;s\;\texttt{of}\;[p_i\arrow a~t_i]_{i\in I}
+} \\ \\
+
+  (\texttt{Fun}) & 
 \myirule{ \sigma[x\mapsto t_2],e\Downarrow t
 }{
-           \langle\lambda x.e,\sigma\rangle~t_2\Downarrow t
+           (\langle\lambda x.e,\sigma\rangle,t_2)\Downarrow_a t
 } \\ \\
 
 
-  (\texttt{M-Case1}) & 
+  (\texttt{Case}) & 
 \myirule{
-            t_i~t \Downarrow t'_i
+            (t_i,t) \Downarrow_a t'_i
 }{
-            (\texttt{case}\;s\;\texttt{of}\;[C_i~\overline{a}\arrow t_i]_{i\in I})~t \Downarrow \texttt{case}\;s\;\texttt{of}\;[C_i~\overline{a}\arrow t'_i]_{i\in I}
+            (\texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I},t) \Downarrow_a \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t'_i]_{i\in I}
 } \\ \\
 
-  (\texttt{M-Case2}) & 
-\myirule{
-}{
-            a~(\texttt{case}\;s\;\texttt{of}\;[C_i~\overline{a}\arrow t_i]_{i\in I}) \Downarrow \texttt{case}\;s\;\texttt{of}\;[C_i~\overline{a}\arrow a~t_i]_{i\in I}
-} \\ \\
 
 
 
@@ -541,12 +542,18 @@ Template for some rules:
 
 
 
-\multicolumn{2}{l}{\myruleform{(t_1,[C_i~\overline{a} \arrow t_i]_{i\in I}) \Downarrow t}} \\ \\
+\multicolumn{2}{l}{\myruleform{(t_1,[C_i~\overline{a} \arrow t_i]_{i\in I}) \Downarrow_c t}} \\ \\
 
-  (\texttt{M-Other}) & 
+  (\texttt{Nest}) & 
+\myirule{(t_i,alts)\Downarrow_c t_i'
+}{
+            (\texttt{case}\;s_1\;\texttt{of}\;[C_i~\overline{a} \arrow t_i]_{i\in I},alts) \Downarrow_c \\ \texttt{case}\;s_1\;\texttt{of}\;[C_i~\overline{a}\arrow t_i']_{i\in I}
+} \\ \\
+
+  (\texttt{Other}) & 
 \myirule{
 }{
-            (s,[C_i~\overline{a}\arrow t_i]_{i\in I}) \Downarrow \texttt{case}\;s\;\texttt{of}\;[C_i~\overline{a} \arrow t_i]_{i\in I}
+            (s,[C_i~\overline{a}\arrow t_i]_{i\in I}) \Downarrow_c \texttt{case}\;s\;\texttt{of}\;[C_i~\overline{a} \arrow t_i]_{i\in I}
 } \\ \\
 
 %%  (\texttt{M-Match}) & 
@@ -555,11 +562,6 @@ Template for some rules:
 %%            C_i~\_, [C_i~\_ \arrow t_i]_{i\in I} \Downarrow t_i
 %%} \\ \\
 
-  (\texttt{M-Nest}) & 
-\myirule{(t_i,alts)\Downarrow t_i'
-}{
-            (\texttt{case}\;s_1\;\texttt{of}\;[C_i~\overline{a} \arrow t_i]_{i\in I},alts) \Downarrow \\ \texttt{case}\;s_1\;\texttt{of}\;[C_i~\overline{a}\arrow t_i']_{i\in I}
-} \\ \\
 
 \ea
 
