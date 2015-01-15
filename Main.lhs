@@ -20,7 +20,7 @@
 
 \input{macro-comments}
 \input{macros}
-
+\newcommand{\apx}{\sqsupseteq}
 \title{Partition Checking}
 
 \authorinfo
@@ -277,8 +277,6 @@ monomorphic type is sufficient or not.
 
 \section{Formalization}
 
-Template for some rules:
-
 \figtwocol{f:syntax}{Abstract Syntax}{
 \small
 \bda{l}
@@ -327,17 +325,11 @@ Template for some rules:
             \rho,c \Downarrow c
 } \\ \\
 
-  (\texttt{Con}) & 
-\myirule{          \rho, e_i \Downarrow v_i
-
-}{
-            \rho,C~\overline{e} \Downarrow C~\overline{v}} \\ \\
-
   (\texttt{Prm}) & 
 \myirule{
            \rho, e_i \Downarrow v_i
  }{
-           \rho,o~\overline{e} \Downarrow o~\overline{v}
+           \rho,C\!/\!o~\overline{e} \Downarrow C\!/\!o~\overline{v}
 } \\ \\
 
   (\texttt{Lam}) & 
@@ -385,16 +377,16 @@ Template for some rules:
 \\ \\
 
 \ba{lc}
-\multicolumn{2}{l}{\myruleform{\sigma,e\Downarrow t}} \\ \\
+\multicolumn{2}{l}{\myruleform{\sigma,e\Downarrow_s t}} \\ \\
 
   (\texttt{Var}) & 
 \myirule{}{
-            \sigma,x \Downarrow \sigma(x)
+            \sigma,x \Downarrow_s \sigma(x)
 } \\ \\
 
   (\texttt{Lit}) & 
 \myirule{}{
-            \sigma,c \Downarrow c
+            \sigma,c \Downarrow_s c
 } \\ \\
 
 %  (\texttt{Con}) & 
@@ -405,25 +397,25 @@ Template for some rules:
 %            \sigma,C~\overline{e} \Downarrow t} \\ \\
 
   (\texttt{Prm}) & 
-\myirule{          \sigma, e_i \Downarrow t_i \;\;\;
+\myirule{          \sigma, e_i \Downarrow_s t_i \;\;\;
                    (C\!/\!o,\overline{t})\Downarrow_o t
 
 }{
-            \sigma,C\!/\!o~\overline{e} \Downarrow t} \\ \\
+            \sigma,C\!/\!o~\overline{e} \Downarrow_s t} \\ \\
 
   (\texttt{Lam}) & 
 \myirule{
           
 }{
-           \sigma, \lambda x . e \Downarrow \langle\lambda x.e,\sigma\rangle
+           \sigma, \lambda x . e \Downarrow_s \langle\lambda x.e,\sigma\rangle
 } \\ \\
 
   (\texttt{Let}) & 
 \myirule{
-           \sigma, e_1 \Downarrow t_1 \;\;\;
-           \sigma [f\mapsto t_1], e_2 \Downarrow t
+           \sigma, e_1 \Downarrow_s t_1 \;\;\;
+           \sigma [f\mapsto t_1], e_2 \Downarrow_s t
  }{
-           \sigma,\texttt{let}\;f = e_1\;\texttt{in}\;e_2\Downarrow t
+           \sigma,\texttt{let}\;f = e_1\;\texttt{in}\;e_2\Downarrow_s t
 } \\ \\
 
 
@@ -435,22 +427,22 @@ Template for some rules:
 
   (\texttt{App}) & 
 \myirule{
-           \sigma, e_1 \Downarrow t_1\;\;\; \rho, e_2 \Downarrow t_2\\
+           \sigma, e_1 \Downarrow_s t_1\;\;\; \sigma, e_2 \Downarrow_s t_2\\
            (t_1,t_2) \Downarrow_a t
  }{
-           \sigma,e_1\;e_2 \Downarrow t
+           \sigma,e_1\;e_2 \Downarrow_s t
 } \\ \\
 
 
 
   (\texttt{Cas}) & 
 \myirule{
-           \sigma, e \Downarrow t_1 \\
+           \sigma, e \Downarrow_s t_1 \\
          %%  \rho_i = match\; v\; p_i\;\;\;
-           \sigma[\overline{x} \mapsto \overline{a}],e_i\Downarrow t_i \\
+           \sigma[\overline{x} \mapsto \overline{a}],e_i\Downarrow_s t_i \\
            (t_1,[C_i~\overline{a} \arrow t_i]_{i\in I}) \Downarrow_c t
  }{
-           \sigma,\texttt{case}\;e\;\texttt{of}\;[C_i~\overline{x}\arrow e_i]_{i\in I} \Downarrow t
+           \sigma,\texttt{case}\;e\;\texttt{of}\;[C_i~\overline{x}\arrow e_i]_{i\in I} \Downarrow_s t
 } \\ \\
 
 
@@ -569,6 +561,53 @@ Template for some rules:
 }
 
 
+\figtwocol{f:approx}{Approximation Rules}{
+\small
+\bda{l}
+
+\textbf{}
+\\ \\
+
+\ba{lc}
+\multicolumn{2}{l}{\myruleform{t\apx v}} \\ \\
+
+ & 
+\myirule{}{
+            c\apx c
+} \\ \\
+
+&
+\myirule{}{
+            a\apx v
+} \\ \\
+
+&
+\myirule{}{
+            \langle\lambda x . e,\sigma\rangle \apx \langle\lambda x . e,\rho\rangle
+} \\ \\
+
+&
+\myirule{\overline{s\apx v}}{
+            C\!/\!o~\overline{s}\apx C\!/\!o~\overline{v}} \\ \\
+
+&
+\myirule{}{
+            a~s\apx v
+} \\ \\
+
+&
+\myirule{}{
+            \texttt{case}\;s\;\texttt{of}\;[C_i~\overline{a}\arrow t_i]_{i\in I}\apx ?
+} \\ \\
+
+\ea
+
+\eda
+}
+\begin{theorem}[Correctness of Symbolic Execution]
+For all e, giving $\rho$ and $\sigma$ such that $\sigma\apx\rho$, if $\rho,e\Downarrow v$ and $\sigma,e\Downarrow_s t$ then $t\apx v$.
+\end{theorem}
+Prove by case analysis on the derivation of $\rho,e\Downarrow v$ and induction on $e$. 
 
 
  
