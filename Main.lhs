@@ -1,4 +1,4 @@
-\documentclass{sigplanconf}
+\documentclass[runningheads,a4paper]{llncs}
 
 %include lhs2TeX.fmt
 %include lhs2TeX.sty
@@ -23,7 +23,7 @@
 \newcommand{\apx}{\sqsupseteq}
 \title{Partition Checking}
 
-\authorinfo
+\author
 {DRAFT}
 
 
@@ -43,13 +43,13 @@ tool for testing functional programs.  The existing approaches to PBT
 use for the most part random testing.
 
 In imperative programming random testing has also been widely
-used. However, several authors have argued against the drawbacks 
-of random testing, while promoting other approaches, such as Symbolic Execution. 
-Symbolic execution is interesting for testing because a program path can 
-be followed, not only for a concrete input, but for all inputs that satisfy 
-the path condition. In random testing, due to the use of a concrete input, 
+used. However, several authors have argued against the drawbacks
+of random testing, while promoting other approaches, such as Symbolic Execution.
+Symbolic execution is interesting for testing because a program path can
+be followed, not only for a concrete input, but for all inputs that satisfy
+the path condition. In random testing, due to the use of a concrete input,
 
-Symbolic execution seems a very good fit for functional programming. 
+Symbolic execution seems a very good fit for functional programming.
 
 Property-based testing is by now a well-established mechanism for testing FP programs;
 Property-based testing is usually done using random testing;
@@ -74,7 +74,7 @@ but there is a big gap in expressiveness between a simple "if"
 and case analysis
 case analysis introduces binding, for example
 
-Large Paths + Parametric definitions + White Box Testing 
+Large Paths + Parametric definitions + White Box Testing
 
 
 > {-# LANGUAGE FlexibleInstances #-}
@@ -93,15 +93,15 @@ reverse
 > reverse2 :: [a] -> [a]
 > reverse2 xs = revAcc xs []
 >   where revAcc [] acc = acc
->         revAcc (x:xs) acc = revAcc xs (x:acc) 
+>         revAcc (x:xs) acc = revAcc xs (x:acc)
 >
 > reverse3 :: [a] -> [a]
 > reverse3 = foldr snoc []
->   where snoc x xs = xs ++ [x] 
+>   where snoc x xs = xs ++ [x]
 >
 > prop_rev_reg :: [Int] -> Bool
 > prop_rev_reg xs = reverse1 xs == reverse2 xs && reverse2 xs == reverse3 xs
-> 
+>
 > prop_rev_twice :: [Int] -> Bool
 > prop_rev_twice xs = reverse1 (reverse1 xs) == xs
 >
@@ -118,7 +118,7 @@ filter
 > filterPos (x:xs) = if x>0 then x:filterPos xs else filterPos xs
 >
 > prop_filterP :: [Int] -> Bool
-> prop_filterP xs = all (>0) (filterPos xs) 
+> prop_filterP xs = all (>0) (filterPos xs)
 >
 > prop_filterP_length :: [Int] -> Bool
 > prop_filterP_length xs = length xs >= length (filterPos xs)
@@ -151,28 +151,28 @@ sort
 <       [] == revAcc xs []
 <   ==  {- definition of |revAcc| -}
 <       [] == []
-<   ==  
+<   ==
 <       True
 
 <       xs = [X]
 <       reverse1 xs == reverse2 xs
-<   ==  
+<   ==
 <       reverse1 [] ++ [X] == revAcc [X] []
-<   ==  
+<   ==
 <       [X] == revAcc [] (X:[])
-<   == 
+<   ==
 <       True
 
-The polymorphic case is always simple. Add we are exploiting the fact that the function is polymorphic. 
+The polymorphic case is always simple. Add we are exploiting the fact that the function is polymorphic.
 On the contrary, QuickCheck is weak here. It is not easy to tell whether the test performed on a selected
-monomorphic type is sufficient or not.   
+monomorphic type is sufficient or not.
 
 
 <       prop_filterP
 
 <       xs = []
 <
-<       all (>0) (filterPos []) 
+<       all (>0) (filterPos [])
 <   ==
 <       all (>0) []
 <   ==
@@ -180,40 +180,40 @@ monomorphic type is sufficient or not.
 
 <       xs = [X]
 <
-<       all (>0) (filterPos [X]) 
+<       all (>0) (filterPos [X])
 <   ==  {- Both branches are True -}
 <       True
 
 <       xs = [X] where X > 0
 <
 <       all (>0) (filterPos [X])
-<   ==  
+<   ==
 <       all (>0) (X:filterPos [])
-<   == 
+<   ==
 <       all (>0) [X]
-<   == 
+<   ==
 <       True
 
 <       xs = [X] where X <= 0
 <
 <       all (>0) (filterPos [X])
-<   ==  
+<   ==
 <       all (>0) (filterPos [])
-<   == 
+<   ==
 <       all (>0) []
-<   == 
+<   ==
 <       True
 
 <       xs = [X,Y]
 <
-<       all (>0) (filterPos [X,Y]) 
+<       all (>0) (filterPos [X,Y])
 <   ==  {- All branches are True -}
 <       True
 
 <       xs = [X,Y] where X > 0
 <
 <       all (>0) (filterPos [X,Y])
-<   ==  
+<   ==
 <       all (>0) (X:filterPos [Y])
 <   ==  {- All branches are True -}
 <       True
@@ -221,31 +221,31 @@ monomorphic type is sufficient or not.
 <       xs = [X,Y] where X > 0, Y > 0
 <
 <       all (>0) (filterPos [X,Y])
-<   ==  
+<   ==
 <       all (>0) (X:filterPos [Y])
 <   ==
 <       all (>0) (X:Y:filterPos [])
-<   ==  
+<   ==
 <       all (>0) [X,Y]
-<   ==  
+<   ==
 <       True
 
 <       xs = [X,Y] where X > 0, Y <= 0
 <
 <       all (>0) (filterPos [X,Y])
-<   ==  
+<   ==
 <       all (>0) (X:filterPos [Y])
 <   ==
 <       all (>0) (X:Y:filterPos [])
-<   ==  
+<   ==
 <       all (>0) [X]
-<   ==  
+<   ==
 <       True
 
 <       xs = [X,Y] where X <= 0
 <
 <       all (>0) (filterPos [X,Y])
-<   ==  
+<   ==
 <       all (>0) (filterPos [Y])
 <   ==  {- All branches are True -}
 <       True
@@ -253,25 +253,25 @@ monomorphic type is sufficient or not.
 <       xs = [X,Y] where X <= 0, Y > 0
 <
 <       all (>0) (filterPos [X,Y])
-<   ==  
+<   ==
 <       all (>0) (filterPos [Y])
 <   ==
 <       all (>0) (Y:filterPos [])
-<   ==  
+<   ==
 <       all (>0) [Y]
-<   ==  
+<   ==
 <       True
 
 <       xs = [X,Y] where X <= 0, Y <= 0
 <
 <       all (>0) (filterPos [X,Y])
-<   ==  
+<   ==
 <       all (>0) (filterPos [Y])
 <   ==
 <       all (>0) (filterPos [])
-<   ==  
+<   ==
 <       all (>0) []
-<   ==  
+<   ==
 <       True
 
 
@@ -282,24 +282,24 @@ monomorphic type is sufficient or not.
 \bda{l}
 
 \ba{llrl}
-%%    \textbf{Types} & \type & ::= & \alpha \mid \type \arrow \type 
-%%    \mid \forall \alpha. \type \\ 
+%%    \textbf{Types} & \type & ::= & \alpha \mid \type \arrow \type
+%%    \mid \forall \alpha. \type \\
 %%    \textbf{Type Contexts} & \Gamma & ::= & \epsilon \mid \Gamma, \relation{x}{\type} \\
-    \textbf{Expressions} & e & ::=  & x \mid c \mid C~\overline{e}\mid o~\overline{e} \mid 
-                         \lambda x . e \mid e_1\;e_2 \mid\\ 
+    \textbf{Expressions} & e & ::=  & x \mid c \mid C~\overline{e}\mid o~\overline{e} \mid
+                         \lambda x . e \mid e_1\;e_2 \mid\\
                          &&&\texttt{let}\;f = \lambda x. e_1\;\texttt{in}\;e_2 \mid \texttt{case}\;e\;\texttt{of}\;[C_i~\overline{x}\arrow e_i]_{i\in I} \\
-%    \textbf{Patterns} & p & ::= & x \mid C~\overline{x} \\ 
+%    \textbf{Patterns} & p & ::= & x \mid C~\overline{x} \\
     \textbf{Values} & v & ::= & c \mid C~\overline{v} \mid \langle\lambda x . e,\rho\rangle\\
-    \textbf{Symbolic Values} & s & ::= & a \mid c \mid \langle\lambda x . e,\sigma\rangle \mid C~\overline{s} \mid o~\overline{s} \mid a\;s  \\ 
+    \textbf{Symbolic Values} & s & ::= & a \mid c \mid \langle\lambda x . e,\sigma\rangle \mid C~\overline{s} \mid o~\overline{s} \mid a\;s  \\
     \textbf{Execution Trees} & t & ::= & s \mid \texttt{case}\;s\;\texttt{of}\;[C_i~\overline{a}\arrow t_i]_{i\in I} \\ %\mid \forall a.t\\
 
 \ea
 \\ \\
 
-\ba{llrl} 
+\ba{llrl}
 \textbf{Environments} & \rho & ::= & \epsilon \mid \rho[x\mapsto v] \\
-\textbf{Symbolic Environments} & \sigma & ::= & \epsilon \mid \sigma[x\mapsto t]  
-\ea 
+\textbf{Symbolic Environments} & \sigma & ::= & \epsilon \mid \sigma[x\mapsto t]
+\ea
 \\ \\
 \eda
 }
@@ -315,37 +315,37 @@ monomorphic type is sufficient or not.
 \ba{lc}
 \multicolumn{2}{l}{\myruleform{\rho,e\Downarrow v}} \\ \\
 
-  (\texttt{Var}) & 
+  (\texttt{Var}) &
 \myirule{}{
             \rho,x \Downarrow \rho(x)
 } \\ \\
 
-  (\texttt{Lit}) & 
+  (\texttt{Lit}) &
 \myirule{}{
             \rho,c \Downarrow c
 } \\ \\
 
-  (\texttt{Prm}) & 
+  (\texttt{Prm}) &
 \myirule{
            \rho, e_i \Downarrow v_i
  }{
            \rho,C\!/\!o~\overline{e} \Downarrow C\!/\!o~\overline{v}
 } \\ \\
 
-  (\texttt{Lam}) & 
+  (\texttt{Lam}) &
 \myirule{
 }{
            \rho, \lambda x . e \Downarrow \langle\lambda x . e,\rho\rangle
 } \\ \\
 
-  (\texttt{Let}) & 
+  (\texttt{Let}) &
 \myirule{
           \rho, e_1\Downarrow v_1\;\;\; \rho[f\mapsto v_1], e_2 \Downarrow v
  }{
            \rho,\texttt{let}\;f =  e_1\;\texttt{in}\;e_2\Downarrow v
 } \\ \\
 
-  (\texttt{App}) & 
+  (\texttt{App}) &
 \myirule{
            \rho,e_1 \Downarrow \langle\lambda x. e,\rho'\rangle\;\;\; \rho, e_2 \Downarrow v_2\\
            \rho'[x\mapsto v_2],e\Downarrow v\;\;\;
@@ -353,7 +353,7 @@ monomorphic type is sufficient or not.
            \rho,e_1\;e_2 \Downarrow v
 } \\ \\
 
-  (\texttt{Cas}) & 
+  (\texttt{Cas}) &
 \myirule{
            \rho, e \Downarrow v \;\;\;
            \rho_i = match\; v\; (C_i~\overline{x})\;\;\;
@@ -379,38 +379,38 @@ monomorphic type is sufficient or not.
 \ba{lc}
 \multicolumn{2}{l}{\myruleform{\sigma,e\Downarrow_s t}} \\ \\
 
-  (\texttt{Var}) & 
+  (\texttt{Var}) &
 \myirule{}{
             \sigma,x \Downarrow_s \sigma(x)
 } \\ \\
 
-  (\texttt{Lit}) & 
+  (\texttt{Lit}) &
 \myirule{}{
             \sigma,c \Downarrow_s c
 } \\ \\
 
-%  (\texttt{Con}) & 
+%  (\texttt{Con}) &
 %\myirule{          \sigma, e_i \Downarrow t_i \;\;\;
 %                   C~\overline{t}\Downarrow t
 
 %}{
 %            \sigma,C~\overline{e} \Downarrow t} \\ \\
 
-  (\texttt{Prm}) & 
+  (\texttt{Prm}) &
 \myirule{          \sigma, e_i \Downarrow_s t_i \;\;\;
                    (C\!/\!o,\overline{t})\Downarrow_o t
 
 }{
             \sigma,C\!/\!o~\overline{e} \Downarrow_s t} \\ \\
 
-  (\texttt{Lam}) & 
+  (\texttt{Lam}) &
 \myirule{
-          
+
 }{
            \sigma, \lambda x . e \Downarrow_s \langle\lambda x.e,\sigma\rangle
 } \\ \\
 
-  (\texttt{Let}) & 
+  (\texttt{Let}) &
 \myirule{
            \sigma, e_1 \Downarrow_s t_1 \;\;\;
            \sigma [f\mapsto t_1], e_2 \Downarrow_s t
@@ -419,13 +419,13 @@ monomorphic type is sufficient or not.
 } \\ \\
 
 
-%  (\texttt{Con}) & 
+%  (\texttt{Con}) &
 %\myirule{
 %}{
 %            \sigma,C_n \Downarrow \lambda \alpha_1 \ldots \lambda \alpha_n .~C_n~\overline{\alpha}
 %} \\ \\
 
-  (\texttt{App}) & 
+  (\texttt{App}) &
 \myirule{
            \sigma, e_1 \Downarrow_s t_1\;\;\; \sigma, e_2 \Downarrow_s t_2\\
            (t_1,t_2) \Downarrow_a t
@@ -435,7 +435,7 @@ monomorphic type is sufficient or not.
 
 
 
-  (\texttt{Cas}) & 
+  (\texttt{Cas}) &
 \myirule{
            \sigma, e \Downarrow_s t_1 \\
          %%  \rho_i = match\; v\; p_i\;\;\;
@@ -462,12 +462,12 @@ monomorphic type is sufficient or not.
 
 \multicolumn{2}{l}{\myruleform{(C\!/\!o,\overline{t})\Downarrow_o t}} \\ \\
 
-  (\texttt{Val}) & 
+  (\texttt{Val}) &
 \myirule{}{
             (C\!/\!o,\overline{s}) \Downarrow_o C\!/\!o~\overline{s}
 } \\ \\
 
-  (\texttt{Case}) & 
+  (\texttt{Case}) &
 \myirule{ (C\!/\!o,\overline{s}~t_i~\overline{t})\Downarrow_o t
 %\texttt{case}\;s\;\texttt{of}\;[p_i\arrow C\!/\!o~\overline{s}~t_i~\overline{t}]_{i\in I}\Downarrow t
 }{
@@ -478,32 +478,32 @@ monomorphic type is sufficient or not.
 
 \multicolumn{2}{l}{\myruleform{(t_1,t_2) \Downarrow_a t}} \\ \\
 
-%%  (\texttt{M-Var}) & 
+%%  (\texttt{M-Var}) &
 %%\myirule{
 %%}{
-%%            \alpha~t_1 \Downarrow \alpha~t_1 
+%%            \alpha~t_1 \Downarrow \alpha~t_1
 %%} \\ \\
 
-  (\texttt{Var1}) & 
+  (\texttt{Var1}) &
 \myirule{
 }{
             (a,s) \Downarrow_a a~s
 } \\ \\
 
-  (\texttt{Var2}) & 
+  (\texttt{Var2}) &
 \myirule{
 }{
             (a,\texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I}) \Downarrow_a \texttt{case}\;s\;\texttt{of}\;[p_i\arrow a~t_i]_{i\in I}
 } \\ \\
 
-  (\texttt{Fun}) & 
+  (\texttt{Fun}) &
 \myirule{ \sigma[x\mapsto t_2],e\Downarrow t
 }{
            (\langle\lambda x.e,\sigma\rangle,t_2)\Downarrow_a t
 } \\ \\
 
 
-  (\texttt{Case}) & 
+  (\texttt{Case}) &
 \myirule{
             (t_i,t) \Downarrow_a t'_i
 }{
@@ -515,19 +515,19 @@ monomorphic type is sufficient or not.
 
 %%\multicolumn{2}{l}{\myruleform{s~t_1 \Downarrow t_2}} \\ \\
 
-%%  (\texttt{M-Var}) & 
+%%  (\texttt{M-Var}) &
 %%\myirule{}{
-%%            s~\alpha \Downarrow s~\alpha 
+%%            s~\alpha \Downarrow s~\alpha
 %%} \\ \\
 
-%%  (\texttt{M-Symbol}) & 
+%%  (\texttt{M-Symbol}) &
 %%\myirule{}{
-%%            s_1~s_2 \Downarrow s_1~s_2 
+%%            s_1~s_2 \Downarrow s_1~s_2
 %%} \\ \\
 
-%%  (\texttt{M-Fun}) & 
+%%  (\texttt{M-Fun}) &
 %%\myirule{
-%%           
+%%
 %%}{
 %%             s~(\lambda \alpha . t) \Downarrow s~(\lambda \alpha . t)
 %%} \\ \\
@@ -536,19 +536,19 @@ monomorphic type is sufficient or not.
 
 \multicolumn{2}{l}{\myruleform{(t_1,[C_i~\overline{a} \arrow t_i]_{i\in I}) \Downarrow_c t}} \\ \\
 
-  (\texttt{Nest}) & 
+  (\texttt{Nest}) &
 \myirule{(t_i,alts)\Downarrow_c t_i'
 }{
             (\texttt{case}\;s_1\;\texttt{of}\;[C_i~\overline{a} \arrow t_i]_{i\in I},alts) \Downarrow_c \\ \texttt{case}\;s_1\;\texttt{of}\;[C_i~\overline{a}\arrow t_i']_{i\in I}
 } \\ \\
 
-  (\texttt{Other}) & 
+  (\texttt{Other}) &
 \myirule{
 }{
             (s,[C_i~\overline{a}\arrow t_i]_{i\in I}) \Downarrow_c \texttt{case}\;s\;\texttt{of}\;[C_i~\overline{a} \arrow t_i]_{i\in I}
 } \\ \\
 
-%%  (\texttt{M-Match}) & 
+%%  (\texttt{M-Match}) &
 %%\myirule{
 %%}{
 %%            C_i~\_, [C_i~\_ \arrow t_i]_{i\in I} \Downarrow t_i
@@ -571,7 +571,7 @@ monomorphic type is sufficient or not.
 \ba{lc}
 \multicolumn{2}{l}{\myruleform{t\apx v}} \\ \\
 
- & 
+ &
 \myirule{}{
             c\apx c
 } \\ \\
@@ -607,10 +607,10 @@ monomorphic type is sufficient or not.
 \begin{theorem}[Correctness of Symbolic Execution]
 For all e, giving $\rho$ and $\sigma$ such that $\sigma\apx\rho$, if $\rho,e\Downarrow v$ and $\sigma,e\Downarrow_s t$ then $t\apx v$.
 \end{theorem}
-Prove by case analysis on the derivation of $\rho,e\Downarrow v$ and induction on $e$. 
+Prove by case analysis on the derivation of $\rho,e\Downarrow v$ and induction on $e$.
 
 
- 
+
 \section{Related Work}\label{sec:related}
 %include RelatedWork.lhs
 
