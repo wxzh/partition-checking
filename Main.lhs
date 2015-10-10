@@ -104,8 +104,8 @@ extra code for generators or shrinking functions.
 %include sections/Introduction.lhs
 %include sections/Review.lhs
 %include sections/Overview.lhs
-%include sections/CaseStudies.lhs
 %include sections/Formalization.lhs
+%include sections/CaseStudies.lhs
 %include sections/RelatedWork.lhs
 %include sections/Conclusion.lhs
 

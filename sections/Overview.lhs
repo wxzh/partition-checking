@@ -18,7 +18,7 @@ To begin with, let us consider the \texttt{take} function, which is a typical fu
 > take 0  _            =  Nil
 > take n  (Cons x xs)  =  Cons x (take (n-1) xs)
  
-We desugar the program to use explicit pattern matching and if expression for the purpose of demonstration in Fig.~\ref{fig:tree}.
+We desugar the program to use explicit pattern matching and if expression for the purpose of demonstration in Fig.~\ref{fig:take}.
 
 \begin{figure}[ht]
 \centering
@@ -49,7 +49,7 @@ The key idea of symbolic execution is to use \emph{symbolic values} rather than 
 When symbolic executing \texttt{take}, its parameters, $n$ and $xs$, are not instantiated to be any concrete values.
 Instead, they are treated as symbolic variables, which represent all possible values of their respective type.
 The result of symbolic execution may diverge since control statement(pattern matching and if expression) over symbolic variables can lead the execution to different paths.
-Thus, we use a tree, called \emph{execution tree}, to capture all the potential results. Figure ~\ref{fig:tree} visualises the execution tree for the \texttt{take} function.
+Thus, we use a tree, called \emph{execution tree}, to capture all the potential results. Figure~\ref{fig:tree} visualises the execution tree for the \texttt{take} function.
  
 % When symbolic executing this program, $x$ will not be instantiated to be any concrete integers. Instead, we keep $x$ abstract: a symbolic variable that represents all integers. Branching statements may lead to different execution paths. For this example, the if statement makes the result diverges depending on whether $x$ is $123$ or not. Hence to capture all possible execution results, we use a tree to represent like this:
  
@@ -57,12 +57,12 @@ Thus, we use a tree, called \emph{execution tree}, to capture all the potential 
  
 %  The advantage of symbolic execution is that one execution path will be covered only once, which can improve the test coverage dramatically especially when the path covers a large input set.
  
-All the symbolic variables have been renamed as $x$ with an unique index starting from 0. The root is always a \texttt{True}; nodes record the decision made when encountering a control statement; leaves are the results of execution.
-Note that the tree shown here is incomplete since symbolic executing a recursive funcion may result in an infinite execution tree.
+All the symbolic variables have been renamed as $x$ with an unique index starting from 0. The \emph{root} is always a \texttt{True}; \emph{nodes} record the decision made when encountering a control statement; \emph{leaves} are the results of execution.
+Note that the tree shown here is incomplete since symbolic executing a recursive funcion may result in an \emph{infinite} execution tree.
  
 \paragraph{Path Condition} A \emph{path condition}(PC) is a quantifier-free first-order formula over symbolic expressions which uniquely determines an execution path.
 A PC is constructed by conjuncting the decisions stored in the nodes via traversing the tree from the root down to the leaf.
-For example, there are four complete paths showed in Fig.~\ref{take}:
+For example, there are four complete paths showed in Fig.~\ref{fig:tree}:
  
  \begin{enumerate}
 \item $x_1$ = Nil $\Rightarrow$ Nil
@@ -79,14 +79,14 @@ Therefore symbolic executing on a property will yield a tree whose leaves are bo
 A property \emph{holds} if all possible execution paths are ended with a \emph{true}.
 To falsify the property, we perform an analysis on the execution tree to check whether there exists a feasible execution path that leads to a \emph{false}.
  
-\paragraph{Pruning} There exist infeasible paths in the execution tree: the assertion itself is not satisfiable or contradicts with previous assertions. The two typical cases are: (1) boolean formulas in if expression can never be \emph{true}, e.g.
+\paragraph{Pruning} There exist infeasible paths in the execution tree: the assertion itself is not satisfiable or it contradicts with previous assertions. The two typical cases are: (1) boolean formulas in if expression can never be \emph{true}, e.g.
  
 > prop_If    ::  Int -> Bool
 > prop_If x  =   if x > 0 && x < 1
 >                then False -- infeasible
 >                else True
  
-There is no $x_0$ such that $x_0 > 0 \land x_0 < 1$ where $x_0$ is an integer
+There is no $x_0$ such that $x_0 > 0 \land x_0 < 1$, where $x_0$ is an integer.
  
 (2) The same symbolic variable is pattern matched multiple times, e.g. % can not be constructed by different constructors, e.g.
  
@@ -100,9 +100,9 @@ There is no $x_0$ such that $x_0 > 0 \land x_0 < 1$ where $x_0$ is an integer
  
 $x_0$ can not be constructed by different constructors simultaneously, hence $$x_0 = Nil \land x_0 = \text{Cons } x_1 \text{ } x_2$$ can never be true.
  
-We should filter out the infeasible paths because analysing infeasible paths is a waste of time and infeasible paths that end with \emph{false} may interfere our analysis.
+We must filter out the infeasible paths because analysing infeasible paths is a waste of time and infeasible paths that end with \emph{false} may interfere our analysis.
 To tackle this issue, everytime a new decision is added to the PC, we query the SMT solver for checking the satisfiability(\texttt{check-sat}) of the new PC.
-If it is not satisfiable, we stop and turn to the next branch.
+If it is not satisfiable, we stop and turn to the other branches of the control statements.
 
 % From the theory perspective, a property holds if and only if all the paths lead to a True. But in realality, we could not verify all possible paths since the number of paths may be infinite. Hence, some cutoff mechanisms such as restricting the execution time or specifying a depth need to be introduced.
 
@@ -131,11 +131,9 @@ The depth is not always be the same as the tree depth due to the existence of du
 We observed that PCs contain duplicated decisions especially when symbolically executing a recursive program.
 
 Duplicated decisions has several negative aspects:
-1) performance penalty. If the new decision introduced is already part of the PC, feasiblity check is needed and only
-2) search depth. The duplicated condition will be counted. We may not find the bug for larger scale programs
-3) the minimalism of counterexample
-
-In summary, \name allows users to do property-based testing as what they often do using \qc without the trouble of defining generators and shrinking functions
+1) performance penalty. If the new decision introduced is already part of the PC, feasiblity check is not needed;
+2) shallow search. The duplicated condition if not recognised will be counted into the depth. As a result, we may not be able to inspect deep into the tree and
+3) non-minimal counterexample.
 
 \subsection{A Comparison With \qc}
 
@@ -150,8 +148,6 @@ In summary, \name allows users to do property-based testing as what they often d
 
   \item \emph{Higher Test coverage.} Concrete execution has a high chance of generating test data for the same execution path that Symbolic execution covers an execution path once and only once.
 \end{itemize}
-
-\paragraph{Disadvantages}
 
 \subsection{The Limitation of \name}
 

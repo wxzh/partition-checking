@@ -26,8 +26,6 @@ Table.~\ref{table:time} compares the time for finding the first counterexample f
  
 \paragraph{Summary of Results}
  
- 
- 
 \begin{table}
  \center
 \begin{tabular}{lrrrr}

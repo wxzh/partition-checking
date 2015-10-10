@@ -229,7 +229,7 @@ Claessen~\cite{claessen2012shrinking} proposes a way of showing and shrinking fu
 This improvement can catch bugs sometimes, but it is not the case for this example. Why?
 This program is also a variant of the class of programs that \qc suffers from finding bugs we discussed in the previous section.
 
-\subsection{Summary}
+\subsection{The Limitations of \qc}
 
 From the example we can conclude that in \qc, the effectness of testing heavily depends on the quality of the test generator and shrinking function. However, writing them is arduous and hard, which requires a good understanding of the \qc library, the mechanism under the hood and the program under test. On the contrary, in \name, no generators and shrinking functions is needed which eases property-based testing.
 We summarise the limitations of \qc below:
@@ -239,8 +239,6 @@ We summarise the limitations of \qc below:
 Having the \qc can effectively find bugs for most cases. However, restricted by the nature of random testing, \qc has difficulty finding bugs that only a small portion of inputs can trigger
 
 % \qc black-box but users do white-box manually, contradiction.
-
-The limitations of \qc are summarised as follows:
 
 \begin{enumerate}
 \item \emph{ Manually defined generators for algebraic datatypes. } \qc adopts type-directed approach to generate test data requiring the type to be an instance of \texttt{Arbitrary} type class with the hook method \texttt{arbitrary} implemented. Though \qc  generators for commonly used types and a set of combinators for defining generators, it is still bothersome and tricky to implement generators for self-defined algebraic datatypes.
@@ -254,7 +252,7 @@ reasonable size data and achieve approapriate distribution can be extremely subt
 
  However, defining an efficient shrinking method manually is hard if one does not understand the shrinking well.
 
-\item \emph{ Low test coverage. } Due to the nature of randomness, test coverage of \qc can not be measured precisely. Typically 100 (by default) randomly generated test cases would be exercised, which merely occupies a small portion of the input space. Thus, there is no gurantee on the test coverage even if we adjust the number.
+\item \emph{ Low test coverage. } Due to the nature of randomness, test coverage of \qc can not be measured precisely. Typically 100 (by default) randomly generated test cases would be exercised, which merely occupies a small portion of the input space.
 \end{enumerate}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
