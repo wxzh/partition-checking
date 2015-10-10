@@ -77,7 +77,7 @@ otherkeywords={->,::,rec}
 \begin{abstract}
 Property-Based Testing (PBT) is widely used in functional programming
 to test programs. Approaches to PBT in functional programming include
-well-known libraries such as Quickcheck or Smallcheck. Unfortunatelly,
+well-known libraries such as Quickcheck or Smallcheck. Unfortunately,
 for programs that involve invariants or pre-conditions, those PBT
 libraries require users to manually write some extra, often
 non-trivial, functions in order to provide effective testing. These
@@ -95,7 +95,7 @@ under test from the programmer to the computer. Moreover, symbolic execution mak
 Therefore our approach is able to find corner case bugs that QuickCheck and SmallCheck can hardly find.
 To prove the effectiveness of our approach in practice we developed a small Mini-ML style
 functional language and conducted several case studies to compare
-various property-based testing approaches. The results indicates
+various property-based testing approaches. The results indicate
 that finding counter-examples with a symbolic-based testing approach
 is competitive and sometimes better than Quickcheck, while avoiding
 extra code for generators or shrinking functions.
