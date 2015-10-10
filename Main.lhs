@@ -1,3 +1,4 @@
+% page: 25
 \documentclass[runningheads,a4paper]{llncs}
 
 %include lhs2TeX.fmt
@@ -5,7 +6,7 @@
 %include polycode.fmt
 
 \usepackage{amsmath}
-\usepackage[retainorgcmds]{IEEEtrantools}
+%\usepackage[retainorgcmds]{IEEEtrantools}
 \usepackage{color}
 \usepackage{multirow}
 
@@ -17,10 +18,51 @@
 \usepackage{pstricks,pst-node,pst-tree}
 \usepackage[all]{xy}
 \usepackage{framed}
+\usepackage{qtree}
+\usepackage{xspace}
+\usepackage{listings}
+\usepackage{comment}
+%\usepackage{mylhs2tex}
+ 
+\usepackage{tabularx}
+\usepackage[para,online,flushleft]{threeparttable}
+ 
+%\usepackage{subfig}
+ 
+\lstset{ %
+language=Haskell,                % choose the language of the code
+columns=flexible,
+lineskip=-1pt,
+basicstyle=\ttfamily\small,       % the size of the fonts that are used for the code
+%numbers=none,                   % where to put the line-numbers
+numberstyle=\ttfamily\tiny,      % the size of the fonts that are used for the line-numbers
+stepnumber=1,                   % the step between two line-numbers. If it's 1 each line will be numbered
+numbersep=5pt,                  % how far the line-numbers are from the code
+backgroundcolor=\color{white},  % choose the background color. You must add \usepackage{color}
+showspaces=false,               % show spaces adding particular underscores
+showstringspaces=false,         % underline spaces within strings
+showtabs=false,                 % show tabs within strings adding particular underscores
+morekeywords={var},
+%  frame=single,                   % adds a frame around the code
+tabsize=2,                  % sets default tabsize to 2 spaces
+captionpos=none,                   % sets the caption-position to bottom
+breaklines=true,                % sets automatic line breaking
+breakatwhitespace=false,        % sets if automatic breaks should only happen at whitespace
+title=\lstname,                 % show the filename of files included with \lstinputlisting; also try caption instead of title
+escapeinside={(*}{*)},          % if you want to add a comment within your code
+keywordstyle=\ttfamily\bfseries,
+otherkeywords={->,::,rec}
+% commentstyle=\color{Gray},
+% stringstyle=\color{Green}
+}
 
 \input{macro-comments}
 \input{macros}
 \newcommand{\apx}{\sqsupseteq}
+\newcommand\qc{QuickCheck\xspace}
+\newcommand\sch{SmallCheck\xspace}
+\newcommand\se{\symbolic execution\xspace}
+\newcommand\name{our approach\xspace}
 \title{Partition Checking}
 
 \author
@@ -33,586 +75,39 @@
 \maketitle
 
 \begin{abstract}
-Some abstract ...
+Property-Based Testing (PBT) is widely used in functional programming
+to test programs. Approaches to PBT in functional programming include
+well-known libraries such as Quickcheck or Smallcheck. Unfortunatelly,
+for programs that involve invariants or pre-conditions, those PBT
+libraries require users to manually write some extra, often
+non-trivial, functions in order to provide effective testing. These
+functions include test data generators or functions that shrink
+counter-examples.
+
+This paper proposes an alternative approach to PBT based on symbolic
+execution. In contrast to black-box, library-based approaches such as
+Quickcheck or Smallcheck, our testing approach is language-based and
+white-box. The white-box nature of the approach means that it can exploit
+the definitions of the functions and properties being tested.
+This removes the need of manual test data generators, thus
+moving the burden of carefully analyzing the program and properties
+under test from the programmer to the computer. Moreover, symbolic execution makes it possible to explore execution paths that neither random testing nor bounded-exhaustive approach can easily cover.
+Therefore our approach is able to find corner case bugs that QuickCheck and SmallCheck can hardly find.
+To prove the effectiveness of our approach in practice we developed a small Mini-ML style
+functional language and conducted several case studies to compare
+various property-based testing approaches. The results indicates
+that finding counter-examples with a symbolic-based testing approach
+is competitive and sometimes better than Quickcheck, while avoiding
+extra code for generators or shrinking functions.
 \end{abstract}
 
-\section{Introduction - Some notes}
-
-Property-based testing (PBT) has established itself as an important
-tool for testing functional programs.  The existing approaches to PBT
-use for the most part random testing.
-
-In imperative programming random testing has also been widely
-used. However, several authors have argued against the drawbacks
-of random testing, while promoting other approaches, such as Symbolic Execution.
-Symbolic execution is interesting for testing because a program path can
-be followed, not only for a concrete input, but for all inputs that satisfy
-the path condition. In random testing, due to the use of a concrete input,
-
-Symbolic execution seems a very good fit for functional programming.
-
-Property-based testing is by now a well-established mechanism for testing FP programs;
-Property-based testing is usually done using random testing;
-In Imperative programming, several researchers have pointed flaws to random testing;
-Alternatives include among others, Symbolic Evaluation
-Benefits of SE: can follow a path symbolically, without concrete values
-SE seems a perfect fit for FP:
-  * FP has no side-effects, which are difficult to deal with in SE
-  * FP often defines programs by pattern matching, when the input size for each path tends to be quite big
-paths with large input sizes benefit from SE
-* SE combined with property-based testing can improve significantly the coverage, for programs that have such large paths
-
-so the additional thing in FP is higher-order values
-which is what the Racket guys have been emphasizing and exploring as well
-that should set us apart from Imperative Programming
-right
-and, hopefully, Property-based Testing + FP with datatypes
-should set us apart from the Racket guys
-
-so, in SE the branching constructs are obviously the most intersting aspects
-but there is a big gap in expressiveness between a simple "if"
-and case analysis
-case analysis introduces binding, for example
-
-Large Paths + Parametric definitions + White Box Testing
-
-
-> {-# LANGUAGE FlexibleInstances #-}
-> import Test.QuickCheck
-> import Data.List
-
-\section{Correctness}
-\include{correctness} \label{sec:correctness}
-
-reverse
-
-> reverse1 :: [a] -> [a]
-> reverse1 [] = []
-> reverse1 (x:xs) = reverse1 xs ++ [x]
->
-> reverse2 :: [a] -> [a]
-> reverse2 xs = revAcc xs []
->   where revAcc [] acc = acc
->         revAcc (x:xs) acc = revAcc xs (x:acc)
->
-> reverse3 :: [a] -> [a]
-> reverse3 = foldr snoc []
->   where snoc x xs = xs ++ [x]
->
-> prop_rev_reg :: [Int] -> Bool
-> prop_rev_reg xs = reverse1 xs == reverse2 xs && reverse2 xs == reverse3 xs
->
-> prop_rev_twice :: [Int] -> Bool
-> prop_rev_twice xs = reverse1 (reverse1 xs) == xs
->
-> prop_rev_length :: [Int] -> Bool
-> prop_rev_length xs = length (reverse1 xs) == length xs
->
-> prop_rev_elem :: ([Int],Int) -> Property
-> prop_rev_elem (xs,i) = i < length xs && i >=0 ==> elem (xs!!i) (reverse xs)
-
-filter
-
-> filterPos :: [Int] -> [Int]
-> filterPos [] = []
-> filterPos (x:xs) = if x>0 then x:filterPos xs else filterPos xs
->
-> prop_filterP :: [Int] -> Bool
-> prop_filterP xs = all (>0) (filterPos xs)
->
-> prop_filterP_length :: [Int] -> Bool
-> prop_filterP_length xs = length xs >= length (filterPos xs)
->
-> prop_filterP_twice :: [Int] -> Bool
-> prop_filterP_twice xs = filterPos (filterPos xs) == xs
-
-map
-
-> prop_rev_map :: ([Int],Int -> Int) -> Bool
-> prop_rev_map (xs,f) = reverse (map f xs) == map f (reverse xs)
->
-> instance Show (Int->Int) where
-
-sort
-
-> prop_sort :: (Int,Int,[Int]) -> Property
-> prop_sort (i,j,xs) = i<=j && j < length xs && i >=0 ==> sort xs !! i <= sort xs !! j
->
-> prop_sort1 :: [Int] -> Bool
-> prop_sort1 xs = isSorted (sort xs)
-
-\subsection{Equational Reasoning}
-<       prop_rev_reg
-
-<       xs = []
-<
-<       reverse1 xs == reverse2 xs
-<   ==  {- definitions of |reverse1| and |reverse2|-}
-<       [] == revAcc xs []
-<   ==  {- definition of |revAcc| -}
-<       [] == []
-<   ==
-<       True
-
-<       xs = [X]
-<       reverse1 xs == reverse2 xs
-<   ==
-<       reverse1 [] ++ [X] == revAcc [X] []
-<   ==
-<       [X] == revAcc [] (X:[])
-<   ==
-<       True
-
-The polymorphic case is always simple. Add we are exploiting the fact that the function is polymorphic.
-On the contrary, QuickCheck is weak here. It is not easy to tell whether the test performed on a selected
-monomorphic type is sufficient or not.
-
-
-<       prop_filterP
-
-<       xs = []
-<
-<       all (>0) (filterPos [])
-<   ==
-<       all (>0) []
-<   ==
-<       True
-
-<       xs = [X]
-<
-<       all (>0) (filterPos [X])
-<   ==  {- Both branches are True -}
-<       True
-
-<       xs = [X] where X > 0
-<
-<       all (>0) (filterPos [X])
-<   ==
-<       all (>0) (X:filterPos [])
-<   ==
-<       all (>0) [X]
-<   ==
-<       True
-
-<       xs = [X] where X <= 0
-<
-<       all (>0) (filterPos [X])
-<   ==
-<       all (>0) (filterPos [])
-<   ==
-<       all (>0) []
-<   ==
-<       True
-
-<       xs = [X,Y]
-<
-<       all (>0) (filterPos [X,Y])
-<   ==  {- All branches are True -}
-<       True
-
-<       xs = [X,Y] where X > 0
-<
-<       all (>0) (filterPos [X,Y])
-<   ==
-<       all (>0) (X:filterPos [Y])
-<   ==  {- All branches are True -}
-<       True
-
-<       xs = [X,Y] where X > 0, Y > 0
-<
-<       all (>0) (filterPos [X,Y])
-<   ==
-<       all (>0) (X:filterPos [Y])
-<   ==
-<       all (>0) (X:Y:filterPos [])
-<   ==
-<       all (>0) [X,Y]
-<   ==
-<       True
-
-<       xs = [X,Y] where X > 0, Y <= 0
-<
-<       all (>0) (filterPos [X,Y])
-<   ==
-<       all (>0) (X:filterPos [Y])
-<   ==
-<       all (>0) (X:Y:filterPos [])
-<   ==
-<       all (>0) [X]
-<   ==
-<       True
-
-<       xs = [X,Y] where X <= 0
-<
-<       all (>0) (filterPos [X,Y])
-<   ==
-<       all (>0) (filterPos [Y])
-<   ==  {- All branches are True -}
-<       True
-
-<       xs = [X,Y] where X <= 0, Y > 0
-<
-<       all (>0) (filterPos [X,Y])
-<   ==
-<       all (>0) (filterPos [Y])
-<   ==
-<       all (>0) (Y:filterPos [])
-<   ==
-<       all (>0) [Y]
-<   ==
-<       True
-
-<       xs = [X,Y] where X <= 0, Y <= 0
-<
-<       all (>0) (filterPos [X,Y])
-<   ==
-<       all (>0) (filterPos [Y])
-<   ==
-<       all (>0) (filterPos [])
-<   ==
-<       all (>0) []
-<   ==
-<       True
-
-
-\section{Formalization}
-
-\figtwocol{f:syntax}{Abstract Syntax}{
-\small
-\bda{l}
-
-\ba{llrl}
-%%    \textbf{Types} & \type & ::= & \alpha \mid \type \arrow \type
-%%    \mid \forall \alpha. \type \\
-%%    \textbf{Type Contexts} & \Gamma & ::= & \epsilon \mid \Gamma, \relation{x}{\type} \\
-    \textbf{Expressions} & e & ::=  & x \mid c \mid C~\overline{e}\mid o~\overline{e} \mid
-                         \lambda x . e \mid e_1\;e_2 \mid\\
-                         &&&\texttt{let}\;f = \lambda x. e_1\;\texttt{in}\;e_2 \mid \texttt{case}\;e\;\texttt{of}\;[C_i~\overline{x}\arrow e_i]_{i\in I} \\
-%    \textbf{Patterns} & p & ::= & x \mid C~\overline{x} \\
-    \textbf{Values} & v & ::= & c \mid C~\overline{v} \mid \langle\lambda x . e,\rho\rangle\\
-    \textbf{Symbolic Values} & s & ::= & a \mid c \mid \langle\lambda x . e,\sigma\rangle \mid C~\overline{s} \mid o~\overline{s} \mid a\;s  \\
-    \textbf{Execution Trees} & t & ::= & s \mid \texttt{case}\;s\;\texttt{of}\;[C_i~\overline{a}\arrow t_i]_{i\in I} \\ %\mid \forall a.t\\
-
-\ea
-\\ \\
-
-\ba{llrl}
-\textbf{Environments} & \rho & ::= & \epsilon \mid \rho[x\mapsto v] \\
-\textbf{Symbolic Environments} & \sigma & ::= & \epsilon \mid \sigma[x\mapsto t]
-\ea
-\\ \\
-\eda
-}
-
-
-\figtwocol{f:syntax}{Operational Semantics}{
-\small
-\bda{l}
-
-\textbf{Call-by-value Evaluation}
-\\ \\
-
-\ba{lc}
-\multicolumn{2}{l}{\myruleform{\rho,e\Downarrow v}} \\ \\
-
-  (\texttt{Var}) &
-\myirule{}{
-            \rho,x \Downarrow \rho(x)
-} \\ \\
-
-  (\texttt{Lit}) &
-\myirule{}{
-            \rho,c \Downarrow c
-} \\ \\
-
-  (\texttt{Prm}) &
-\myirule{
-           \rho, e_i \Downarrow v_i
- }{
-           \rho,C\!/\!o~\overline{e} \Downarrow C\!/\!o~\overline{v}
-} \\ \\
-
-  (\texttt{Lam}) &
-\myirule{
-}{
-           \rho, \lambda x . e \Downarrow \langle\lambda x . e,\rho\rangle
-} \\ \\
-
-  (\texttt{Let}) &
-\myirule{
-          \rho, e_1\Downarrow v_1\;\;\; \rho[f\mapsto v_1], e_2 \Downarrow v
- }{
-           \rho,\texttt{let}\;f =  e_1\;\texttt{in}\;e_2\Downarrow v
-} \\ \\
-
-  (\texttt{App}) &
-\myirule{
-           \rho,e_1 \Downarrow \langle\lambda x. e,\rho'\rangle\;\;\; \rho, e_2 \Downarrow v_2\\
-           \rho'[x\mapsto v_2],e\Downarrow v\;\;\;
- }{
-           \rho,e_1\;e_2 \Downarrow v
-} \\ \\
-
-  (\texttt{Cas}) &
-\myirule{
-           \rho, e \Downarrow v \;\;\;
-           \rho_i = match\; v\; (C_i~\overline{x})\;\;\;
-           \rho\rho_i,e_i\Downarrow v_i
- }{
-           \rho,\texttt{case}\;e\;\texttt{of}\;[C_i~\overline{x}\arrow e_i]_{i\in I} \Downarrow v_i
-} \\ \\
-
-\ea
-
-\eda
-}
-
-
-\figtwocol{f:syntax}{Symbolic Operational Semantics}{
-\small
-\bda{l}
-
-\textbf{Symbolic Evaluation}
-
-\\ \\
-
-\ba{lc}
-\multicolumn{2}{l}{\myruleform{\sigma,e\Downarrow_s t}} \\ \\
-
-  (\texttt{Var}) &
-\myirule{}{
-            \sigma,x \Downarrow_s \sigma(x)
-} \\ \\
-
-  (\texttt{Lit}) &
-\myirule{}{
-            \sigma,c \Downarrow_s c
-} \\ \\
-
-%  (\texttt{Con}) &
-%\myirule{          \sigma, e_i \Downarrow t_i \;\;\;
-%                   C~\overline{t}\Downarrow t
-
-%}{
-%            \sigma,C~\overline{e} \Downarrow t} \\ \\
-
-  (\texttt{Prm}) &
-\myirule{          \sigma, e_i \Downarrow_s t_i \;\;\;
-                   (C\!/\!o,\overline{t})\Downarrow_o t
-
-}{
-            \sigma,C\!/\!o~\overline{e} \Downarrow_s t} \\ \\
-
-  (\texttt{Lam}) &
-\myirule{
-
-}{
-           \sigma, \lambda x . e \Downarrow_s \langle\lambda x.e,\sigma\rangle
-} \\ \\
-
-  (\texttt{Let}) &
-\myirule{
-           \sigma, e_1 \Downarrow_s t_1 \;\;\;
-           \sigma [f\mapsto t_1], e_2 \Downarrow_s t
- }{
-           \sigma,\texttt{let}\;f = e_1\;\texttt{in}\;e_2\Downarrow_s t
-} \\ \\
-
-
-%  (\texttt{Con}) &
-%\myirule{
-%}{
-%            \sigma,C_n \Downarrow \lambda \alpha_1 \ldots \lambda \alpha_n .~C_n~\overline{\alpha}
-%} \\ \\
-
-  (\texttt{App}) &
-\myirule{
-           \sigma, e_1 \Downarrow_s t_1\;\;\; \sigma, e_2 \Downarrow_s t_2\\
-           (t_1,t_2) \Downarrow_a t
- }{
-           \sigma,e_1\;e_2 \Downarrow_s t
-} \\ \\
-
-
-
-  (\texttt{Cas}) &
-\myirule{
-           \sigma, e \Downarrow_s t_1 \\
-         %%  \rho_i = match\; v\; p_i\;\;\;
-           \sigma[\overline{x} \mapsto \overline{a}],e_i\Downarrow_s t_i \\
-           (t_1,[C_i~\overline{a} \arrow t_i]_{i\in I}) \Downarrow_c t
- }{
-           \sigma,\texttt{case}\;e\;\texttt{of}\;[C_i~\overline{x}\arrow e_i]_{i\in I} \Downarrow_s t
-} \\ \\
-
-
-\ea
-
-\eda
-}
-
-
-\figtwocol{f:syntax}{Auxiliary Definitions}{
-\small
-\bda{l}
-
-\\ \\
-
-\ba{lc}
-
-\multicolumn{2}{l}{\myruleform{(C\!/\!o,\overline{t})\Downarrow_o t}} \\ \\
-
-  (\texttt{Val}) &
-\myirule{}{
-            (C\!/\!o,\overline{s}) \Downarrow_o C\!/\!o~\overline{s}
-} \\ \\
-
-  (\texttt{Case}) &
-\myirule{ (C\!/\!o,\overline{s}~t_i~\overline{t})\Downarrow_o t
-%\texttt{case}\;s\;\texttt{of}\;[p_i\arrow C\!/\!o~\overline{s}~t_i~\overline{t}]_{i\in I}\Downarrow t
-}{
-          (C\!/\!o,\overline{s}~(\texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I})~\overline{t}) \Downarrow_o \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t]_{i\in I}
-} \\ \\
-
-
-
-\multicolumn{2}{l}{\myruleform{(t_1,t_2) \Downarrow_a t}} \\ \\
-
-%%  (\texttt{M-Var}) &
-%%\myirule{
-%%}{
-%%            \alpha~t_1 \Downarrow \alpha~t_1
-%%} \\ \\
-
-  (\texttt{Var1}) &
-\myirule{
-}{
-            (a,s) \Downarrow_a a~s
-} \\ \\
-
-  (\texttt{Var2}) &
-\myirule{
-}{
-            (a,\texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I}) \Downarrow_a \texttt{case}\;s\;\texttt{of}\;[p_i\arrow a~t_i]_{i\in I}
-} \\ \\
-
-  (\texttt{Fun}) &
-\myirule{ \sigma[x\mapsto t_2],e\Downarrow t
-}{
-           (\langle\lambda x.e,\sigma\rangle,t_2)\Downarrow_a t
-} \\ \\
-
-
-  (\texttt{Case}) &
-\myirule{
-            (t_i,t) \Downarrow_a t'_i
-}{
-            (\texttt{case}\;s\;\texttt{of}\;[p_i\arrow t_i]_{i\in I},t) \Downarrow_a \texttt{case}\;s\;\texttt{of}\;[p_i\arrow t'_i]_{i\in I}
-} \\ \\
-
-
-
-
-%%\multicolumn{2}{l}{\myruleform{s~t_1 \Downarrow t_2}} \\ \\
-
-%%  (\texttt{M-Var}) &
-%%\myirule{}{
-%%            s~\alpha \Downarrow s~\alpha
-%%} \\ \\
-
-%%  (\texttt{M-Symbol}) &
-%%\myirule{}{
-%%            s_1~s_2 \Downarrow s_1~s_2
-%%} \\ \\
-
-%%  (\texttt{M-Fun}) &
-%%\myirule{
-%%
-%%}{
-%%             s~(\lambda \alpha . t) \Downarrow s~(\lambda \alpha . t)
-%%} \\ \\
-
-
-
-\multicolumn{2}{l}{\myruleform{(t_1,[C_i~\overline{a} \arrow t_i]_{i\in I}) \Downarrow_c t}} \\ \\
-
-  (\texttt{Nest}) &
-\myirule{(t_i,alts)\Downarrow_c t_i'
-}{
-            (\texttt{case}\;s_1\;\texttt{of}\;[C_i~\overline{a} \arrow t_i]_{i\in I},alts) \Downarrow_c \\ \texttt{case}\;s_1\;\texttt{of}\;[C_i~\overline{a}\arrow t_i']_{i\in I}
-} \\ \\
-
-  (\texttt{Other}) &
-\myirule{
-}{
-            (s,[C_i~\overline{a}\arrow t_i]_{i\in I}) \Downarrow_c \texttt{case}\;s\;\texttt{of}\;[C_i~\overline{a} \arrow t_i]_{i\in I}
-} \\ \\
-
-%%  (\texttt{M-Match}) &
-%%\myirule{
-%%}{
-%%            C_i~\_, [C_i~\_ \arrow t_i]_{i\in I} \Downarrow t_i
-%%} \\ \\
-
-
-\ea
-
-\eda
-}
-
-
-\figtwocol{f:approx}{Approximation Rules}{
-\small
-\bda{l}
-
-\textbf{}
-\\ \\
-
-\ba{lc}
-\multicolumn{2}{l}{\myruleform{t\apx v}} \\ \\
-
- &
-\myirule{}{
-            c\apx c
-} \\ \\
-
-&
-\myirule{}{
-            a\apx v
-} \\ \\
-
-&
-\myirule{}{
-            \langle\lambda x . e,\sigma\rangle \apx \langle\lambda x . e,\rho\rangle
-} \\ \\
-
-&
-\myirule{\overline{s\apx v}}{
-            C\!/\!o~\overline{s}\apx C\!/\!o~\overline{v}} \\ \\
-
-&
-\myirule{}{
-            a~s\apx v
-} \\ \\
-
-&
-\myirule{}{
-            \texttt{case}\;s\;\texttt{of}\;[C_i~\overline{a}\arrow t_i]_{i\in I}\apx ?
-} \\ \\
-
-\ea
-
-\eda
-}
-\begin{theorem}[Correctness of Symbolic Execution]
-For all e, giving $\rho$ and $\sigma$ such that $\sigma\apx\rho$, if $\rho,e\Downarrow v$ and $\sigma,e\Downarrow_s t$ then $t\apx v$.
-\end{theorem}
-Prove by case analysis on the derivation of $\rho,e\Downarrow v$ and induction on $e$.
-
-
-
-\section{Related Work}\label{sec:related}
-%include RelatedWork.lhs
+%include sections/Introduction.lhs
+%include sections/Review.lhs
+%include sections/Overview.lhs
+%include sections/CaseStudies.lhs
+%include sections/Formalization.lhs
+%include sections/RelatedWork.lhs
+%include sections/Conclusion.lhs
 
 \bibliographystyle{plain}
 \bibliography{literature}
