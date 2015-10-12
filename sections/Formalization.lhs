@@ -1,27 +1,50 @@
-%format (seval (x)) = "\mathcal{S} \llbracket " x "\rrbracket "
-%%format (merge op e1 e2) = "\mathcal{M} \llbracket " op "\" e1 " " e2 "\rrbracket "
-%format mergeList  = "\overline{\mathcal{M}} "
+%format (seval (x)) = "\mathcal{E} \llbracket " x "\rrbracket "
+%format merge  = "\mathcal{M} "
 %%format (Lam n t f) = "\lambda (x:\tau).e"
 %%format (BLam a f) = "\Lambda \alpha.e"
 %%format (Let x e1 e2) = "\texttt{let } x=" e1 " \texttt{ in } " e2
 %%format (App e1 e2) = "e_1\;e_2"
 %%format (TApp e1 e2) = "e\;\tau"
-%format ExecutionTree = t
-%%format vs = "\overline{v}"
-%%format Case = "\textbf{case}"
-%format (ConstrAlt xs e) = "C~\overline{x} \rightarrow e"
+ 
+%format ADD = +
+%format SUB = -
+%format MUL = *
+%format DIV = /
+%format LT = <
+%format LE = "\leqslant"
+%format GT = >
+%format GE = "\geq"
+%format EQ = "\equiv"
+%format NEQ = "\not\equiv"
+%format OR = "\lor"
+%format AND = "\land"
+ 
+%format e1 = "e_1"
+%format e2 = "e_2"
+%format es = "\overline{e}"
+ 
+%format ExecutionTree = "\mathcal{T} "
+%format Leaf = "\mathcal{L} "
+%format Fork = "\mathcal{F} "
  
 \section{Formalisation}\label{sec:formal}
 
+\subsection{Syntax}
+Figure ~\ref{fig:syntax} gives the syntax for Mini-ML. We encode it using parametric higher-order abstract syntax(PHOAS)~\cite{}.
+Note that ``$\texttt{if}\;e1\;e2\;e3$" and ``$e_1 \Longrightarrow e_2$" are not part of it because they can be treated as the syntatic sugar of \texttt{case} expressions:
+the former can be desugared to to be ``$\texttt{case}\;e_1\;\texttt{of}\;[True\arrow e_2, False\arrow e_3]$";
+the latter can be  will be desugared to ``$\texttt{case}\;e_1\;\texttt{of}\;[True\arrow e_2]$".
+
+% Pattern matching should be exhausted
+ 
 \begin{figure}
 \begin{spec}
- 
 data Expr a
   = Int Integer                                   -- integer
   | Bool Bool                                     -- boolean
   | Var a                                         -- variable
-  | Lam Type (a -> Expr a)                        -- abstraction
   | PrimOp (Expr a) Op (Expr a)                   -- binary operation
+  | Lam Type (a -> Expr a)                        -- abstraction
   | App (Expr a) (Expr a)                         -- application
   | Let (Expr a) (a -> Expr a)                    -- let binding
   | Case (Expr a) [(Constructor, [a] -> Expr a)]  -- pattern matching
@@ -29,18 +52,10 @@ data Expr a
   | BLam String Expr                              -- type abastraction
   | TApp Expr Type                                -- type application
  
-data Op = ADD | MUL | SUB | DIV | LT | LE | GT | GE | EQ | NEQ | OR | AND
+data Op = ADD | SUB | MUL | DIV | LT | LE | GT | GE | EQ | NEQ | OR | AND
 
-%data Op = + | - | * | / | == | /= | < | <= | > | >= | || | &&
- 
-\end{spec}
-\caption{Syntax}
-\label{syntax}
-\end{figure}
- 
-\begin{spec}
 data Value
-  = VVar Int Type
+  = VVar Int
   | VInt Integer
   | VBool Bool
   | VApp Value Value
@@ -48,79 +63,81 @@ data Value
   | VConstr Constructor [Value]
  
 data ExecutionTree = Leaf Value | Fork Value [(Constructor, [ExecutionTree] -> ExecutionTree)]
- 
 \end{spec}
+\caption{Syntax of Mini-ML}
+\label{fig:syntax}
+\end{figure}
  
-\subsection{Syntax}
- Figure ~\ref{syntax} gives the syntax for Mini-ML.
+ 
+\subsection{Semantics}
+Figure~\ref{fig:seval} shows the semantics of symbolic execution.
 
- Denotational semantics
 \begin{figure}
 \begin{spec}
 seval :: Expr ExecutionTree -> ExecutionTree
-seval (Int i) = Leaf $ VInt i
-seval (Bool b) = Leaf $ VBool b
-seval (Var x) = x
-seval (Lam t f) = Leaf $ VFun (seval . f) t
-seval (PrimOp e1 op e2) = mergeList (lift op) [seval e1, seval e2]
-seval (Let e f) = seval . f $ seval e
-seval (App e1 e2) = treeApply (seval e1) (seval e2)
-seval (Constr c es) = mergeList (VConstr c) $ map seval es
-seval (Case e alts) = propagate (seval e) [(c, seval . f) | (c, f) <- alts]
+seval (Int i)            =  Leaf $ VInt i
+seval (Bool b)           =  Leaf $ VBool b
+seval (Var x)            =  x
+seval (PrimOp e1 op e2)  =  merge (lift op) [seval e1, seval e2]
+seval (Lam t f)          =  Leaf $ VFun (seval . f) t
+seval (App e1 e2)        =  treeApply (seval e1) (seval e2)
+seval (Let e f)          =  seval . f $ seval e
+seval (Constr c es)      =  merge (VConstr c) $ map seval es
+seval (Case e alts)      =  propagate (seval e) [(c, seval . f) | (c, f) <- alts]
 \end{spec}
-\caption{Denotational semantics for symbolic execution}
-\label{seval}
+\caption{Semantics of symbolic execution}
+\label{fig:seval}
 \end{figure}
 
- Auxilary functions:
+\subsection{Auxilary Functions}
 \begin{spec}
 treeApply :: ExecutionTree -> ExecutionTree -> ExecutionTree
 treeApply (Leaf (VVar n)) t = apply (VApp (VVar n)) t
 treeApply (Leaf (VFun f)) t = f t
 
 apply :: (Value -> Value) -> ExecutionTree -> ExecutionTree
-apply f (Leaf v) = Leaf (f v)
-apply f (Fork v bs) = Fork v [(c, apply f . g) | (c, g) <- bs]
+apply f (Leaf v)     =  Leaf (f v)
+apply f (Fork v bs)  =  Fork v [(c, apply f . g) | (c, g) <- bs]
 
 -- propagate the condition
 propagate :: ExecutionTree -> [(Constructor, [ExecutionTree] -> ExecutionTree)] -> ExecutionTree
-propagate (Leaf e) bs = Fork e bs
-propagate (Fork e bs) bs' = Fork e [(c, \es -> propagate (g es) bs') | (c, g) <- bs]
+propagate (Leaf e) bs      =  Fork e bs
+propagate (Fork e bs) bs'  =  Fork e [(c, \es -> propagate (g es) bs') | (c, g) <- bs]
 
 -- apply function f to the tree
-mergeList :: ([Value] -> Value) -> [ExecutionTree] -> ExecutionTree
-mergeList f [] = Leaf $ f [] -- Nil
-mergeList f ((Leaf v):ts) = mergeList (\ts -> f (v:ts)) ts
-mergeList f ((Fork v bs):ts) = Fork v [(c, \es -> mergeList f (g es : ts)) | (c, g) <- bs]
+merge :: ([Value] -> Value) -> [ExecutionTree] -> ExecutionTree
+merge f []                =  Leaf $ f []
+merge f ((Leaf v):ts)     =  merge (\ts -> f (v:ts)) ts
+merge f ((Fork v bs):ts)  =  Fork v [(c, \es -> merge f (g es : ts)) | (c, g) <- bs]
 
 lift :: Op -> [Value] -> Value
 lift op vs =
   case (v1, v2) of
    (VInt i1, VInt i2) ->
      case op of
-      ADD -> VInt (i1 + i2)
-      SUB -> VInt (i1 - i2)
-      MUL -> VInt (i1 * i2)
-      DIV -> VInt (i1 `div` i2)
-      GT -> VBool (i1 > i2)
-      LT -> VBool (i1 < i2)
-      GE -> VBool (i1 >= i2)
-      LE -> VBool (i1 <= i2)
-      EQ  -> VBool (i1 == i2)
-      NEQ -> VBool (i1 /= i2)
+      ADD  ->  VInt (i1 + i2)
+      SUB  ->  VInt (i1 - i2)
+      MUL  ->  VInt (i1 * i2)
+      DIV  ->  VInt (i1 `div` i2)
+      GT   ->  VBool (i1 > i2)
+      LT   ->  VBool (i1 < i2)
+      GE   ->  VBool (i1 >= i2)
+      LE   ->  VBool (i1 <= i2)
+      EQ   ->  VBool (i1 == i2)
+      NEQ  ->  VBool (i1 /= i2)
    (VBool b1, VBool b2) ->
      case op of
-      EQ  -> VBool (b1 == b2)
-      NEQ -> VBool (b1 /= b2)
-      AND -> VBool (b1 && b2)
-      OR -> VBool (b1 || b2)
+      EQ   ->  VBool (b1 == b2)
+      NEQ  ->  VBool (b1 /= b2)
+      AND  ->  VBool (b1 && b2)
+      OR   ->  VBool (b1 || b2)
   where
     v1 = vs !! 0
     v2 = vs !! 1
 \end{spec}
 
 
-What \texttt{merge} and \texttt{mergelist does}
+Visualise what \texttt{merge} does
 
 \begin{comment}
 \end{comment}
@@ -128,16 +145,6 @@ What \texttt{merge} and \texttt{mergelist does}
 
 
 
-\subsection{Syntax}
-
-Figure~\ref{f:syntax} shows the the core syntax of a typical functional language.
-
-Some notes
-- $\texttt{if}\;e_1\;e_2\;e_3$ will be desugared to $\texttt{case}\;e_1\;\texttt{of}\;[True\arrow e_2, False\arrow e_3]$
-
-- $e_1 \Longrightarrow e_2$ will be desugared to $\texttt{case}\;e_1\;\texttt{of}\;[True\arrow e_2]$
-
-- Pattern matching should be exhausted
 
 \figtwocol{f:syntax}{Abstract Syntax}{
 \small
