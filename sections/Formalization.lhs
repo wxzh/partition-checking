@@ -1,134 +1,124 @@
 %format (seval (x)) = "\mathcal{S} \llbracket " x "\rrbracket "
 %%format (merge op e1 e2) = "\mathcal{M} \llbracket " op "\" e1 " " e2 "\rrbracket "
 %format mergeList  = "\overline{\mathcal{M}} "
-%format (Lam n t f) = "\lambda (x:\tau).e"
-%format (BLam a f) = "\Lambda \alpha.e"
-%format (Let x e1 e2) = "\texttt{let } x=" e1 " \texttt{ in } " e2
-%format (App e1 e2) = "e_1\;e_2"
-%format (TApp e1 e2) = "e\;\tau"
+%%format (Lam n t f) = "\lambda (x:\tau).e"
+%%format (BLam a f) = "\Lambda \alpha.e"
+%%format (Let x e1 e2) = "\texttt{let } x=" e1 " \texttt{ in } " e2
+%%format (App e1 e2) = "e_1\;e_2"
+%%format (TApp e1 e2) = "e\;\tau"
 %format ExecutionTree = t
-%format vs = "\overline{v}"
+%%format vs = "\overline{v}"
 %%format Case = "\textbf{case}"
 %format (ConstrAlt xs e) = "C~\overline{x} \rightarrow e"
- 
  
 \section{Formalisation}\label{sec:formal}
 
 \begin{figure}
 \begin{spec}
-data Expr = Lit               constant value
-  | Var String                variable
-  | Lam String Type Expr      lambda abstraction
-  | PrimOp Expr Op Expr       binary operation
-  | App Expr Expr             application
-  | BLam String Expr
-  | TApp Expr Type
-  | Let String Expr Expr
-  | Case Expr [Alt]
-  | Constr C [Expr]
  
-data Op = ADD
-        | MUL
-        | SUB
-        | DIV
-        | LT
-        | LE
-        | GT
-        | GE
-        | EQ
-        | NEQ
-        | OR
-        | AND
+data Expr a
+  = Int Integer                                   -- integer
+  | Bool Bool                                     -- boolean
+  | Var a                                         -- variable
+  | Lam Type (a -> Expr a)                        -- abstraction
+  | PrimOp (Expr a) Op (Expr a)                   -- binary operation
+  | App (Expr a) (Expr a)                         -- application
+  | Let (Expr a) (a -> Expr a)                    -- let binding
+  | Case (Expr a) [(Constructor, [a] -> Expr a)]  -- pattern matching
+  | Constr Constructor [Expr a]                   -- constructor application
+  | BLam String Expr                              -- type abastraction
+  | TApp Expr Type                                -- type application
+ 
+data Op = ADD | MUL | SUB | DIV | LT | LE | GT | GE | EQ | NEQ | OR | AND
 
 %data Op = + | - | * | / | == | /= | < | <= | > | >= | || | &&
  
 \end{spec}
 \caption{Syntax}
 \label{syntax}
-\end{figure}/
+\end{figure}
  
 \begin{spec}
-data v
-  = c              constant
-  | v v             SApp closure
-  | v op v          Sop applications
-  | SFun x e t
-  | C vs            constructor
+data Value
+  = VVar Int Type
+  | VInt Integer
+  | VBool Bool
+  | VApp Value Value
+  | VFun (ExecutionTree -> ExecutionTree) Type
+  | VConstr Constructor [Value]
  
-data ExecutionTree
-  = v
-  | Fork v []
-  | NewSymVar SymType ExecutionTree
+data ExecutionTree = Leaf Value | Fork Value [(Constructor, [ExecutionTree] -> ExecutionTree)]
  
 \end{spec}
- denotational semantics
  
 \subsection{Syntax}
  Figure ~\ref{syntax} gives the syntax for Mini-ML.
- 
-This section presents the syntax and semantics of \name.
- 
+
+ Denotational semantics
 \begin{figure}
 \begin{spec}
-seval :: Expr () ExecutionTree -> ExecutionTree
-seval (x)  =   x
-seval (c)  =   c
-seval (e1 op e2)  =  merge op (seval e1) (seval e2)
-seval (Lam n t f)  =  Exp $ SFun n (seval . f) t
-seval (Let x e f)  =  seval . f $ seval e
-seval (App e1 e2)  =  treeApply (seval e1) (seval e2)
-seval (BLam a f)  =  seval $ f a
-seval (TApp e t)  =  seval e
-seval (LetRec _ _ binds body)  =  seval . body . fix $ map seval . binds
-seval (Data _ _ e)  =  seval e
-seval (Constr c es)  = mergeList (Constr (map seval es))
-seval (case e of [ConstrAlt xs e]) = propagate (seval e) (map (seval . f) alts)
+seval :: Expr ExecutionTree -> ExecutionTree
+seval (Int i) = Leaf $ VInt i
+seval (Bool b) = Leaf $ VBool b
+seval (Var x) = x
+seval (Lam t f) = Leaf $ VFun (seval . f) t
+seval (PrimOp e1 op e2) = mergeList (lift op) [seval e1, seval e2]
+seval (Let e f) = seval . f $ seval e
+seval (App e1 e2) = treeApply (seval e1) (seval e2)
+seval (Constr c es) = mergeList (VConstr c) $ map seval es
+seval (Case e alts) = propagate (seval e) [(c, seval . f) | (c, f) <- alts]
 \end{spec}
 \caption{Denotational semantics for symbolic execution}
 \label{seval}
 \end{figure}
- 
+
  Auxilary functions:
- 
 \begin{spec}
-mergeList ::  ([SymValue] -> SymValue) -> [ExecutionTree] -> ExecutionTree
-mergeList f []                           =  f []
-mergeList f (v : vs)                     =  mergeList (\es -> f (v:es)) vs
-mergeList f (Fork dt e ts : xs)          =  Fork dt e [(c, ns, \es -> mergeList f (g es : xs)) | (c,ns,g) <- ts]
-\end{spec}
-
-\begin{spec}
-merge :: (SymValue -> SymValue -> SymValue) -> ExecutionTree -> ExecutionTree -> ExecutionTree
-merge op s1 s2 = Exp (op s1 s2)
-merge op (Fork dt e ts) t = Fork dt e [(c, ns, \es -> merge op (g es) t) | (c,ns,g) <- ts]
-merge op t (Fork dt e ts) = Fork dt e [(c, ns, merge op t . g) | (c,ns,g) <- ts]
-
-
 treeApply :: ExecutionTree -> ExecutionTree -> ExecutionTree
-treeApply (Exp e) t =
-    case e of
-      SVar n i typ -> apply (SApp (SVar n i typ)) t
-      SFun _ f _ -> f t
-treeApply (Fork dt e ts) t = Fork dt e [(c, ns, \es -> treeApply (f es) t) | (c,ns,f) <- ts]
+treeApply (Leaf (VVar n)) t = apply (VApp (VVar n)) t
+treeApply (Leaf (VFun f)) t = f t
 
-apply :: (SymValue -> SymValue) -> ExecutionTree -> ExecutionTree
-apply f (Exp e) = Exp (f e)
-apply f (Fork dt e ts) = Fork dt e [(c, ns, apply f . g)| (c,ns,g) <- ts]
+apply :: (Value -> Value) -> ExecutionTree -> ExecutionTree
+apply f (Leaf v) = Leaf (f v)
+apply f (Fork v bs) = Fork v [(c, apply f . g) | (c, g) <- bs]
 
-propagate :: ExecutionTree
-          -> [(SConstructor, [S.ReaderId], [ExecutionTree] -> ExecutionTree)]
-          -> ExecutionTree
-propagate (Exp e) t = Fork e t
-propagate (Fork e t1) t2 = Fork e [C \es -> propagate f (es) t2]
- 
+-- propagate the condition
+propagate :: ExecutionTree -> [(Constructor, [ExecutionTree] -> ExecutionTree)] -> ExecutionTree
+propagate (Leaf e) bs = Fork e bs
+propagate (Fork e bs) bs' = Fork e [(c, \es -> propagate (g es) bs') | (c, g) <- bs]
 
-exec :: ExecutionTree -> (ExecutionTree, Int)
-exec = go 0
-    where go i (Exp (SFun n f t)) =
-              case go (i+1) (f . Exp $ SVar n i t) of
-                (e', i') -> (NewSymVar i t e', i')
-          go i e = (e, i)
+-- apply function f to the tree
+mergeList :: ([Value] -> Value) -> [ExecutionTree] -> ExecutionTree
+mergeList f [] = Leaf $ f [] -- Nil
+mergeList f ((Leaf v):ts) = mergeList (\ts -> f (v:ts)) ts
+mergeList f ((Fork v bs):ts) = Fork v [(c, \es -> mergeList f (g es : ts)) | (c, g) <- bs]
+
+lift :: Op -> [Value] -> Value
+lift op vs =
+  case (v1, v2) of
+   (VInt i1, VInt i2) ->
+     case op of
+      ADD -> VInt (i1 + i2)
+      SUB -> VInt (i1 - i2)
+      MUL -> VInt (i1 * i2)
+      DIV -> VInt (i1 `div` i2)
+      GT -> VBool (i1 > i2)
+      LT -> VBool (i1 < i2)
+      GE -> VBool (i1 >= i2)
+      LE -> VBool (i1 <= i2)
+      EQ  -> VBool (i1 == i2)
+      NEQ -> VBool (i1 /= i2)
+   (VBool b1, VBool b2) ->
+     case op of
+      EQ  -> VBool (b1 == b2)
+      NEQ -> VBool (b1 /= b2)
+      AND -> VBool (b1 && b2)
+      OR -> VBool (b1 || b2)
+  where
+    v1 = vs !! 0
+    v2 = vs !! 1
 \end{spec}
+
 
 What \texttt{merge} and \texttt{mergelist does}
 
