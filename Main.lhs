@@ -63,7 +63,7 @@ otherkeywords={->,::,rec}
 \newcommand\sch{SmallCheck\xspace}
 \newcommand\se{\symbolic execution\xspace}
 \newcommand\name{our approach\xspace}
-\title{Partition Checking}
+\title{Symbolic Property-Based Testing}
 
 \author
 {DRAFT}
@@ -77,7 +77,7 @@ otherkeywords={->,::,rec}
 \begin{abstract}
 Property-Based Testing (PBT) is widely used in functional programming
 to test programs. Approaches to PBT in functional programming include
-well-known libraries such as Quickcheck or Smallcheck. Unfortunately,
+well-known libraries such as QuickCheck or SmallCheck. Unfortunately,
 for programs that involve invariants or pre-conditions, those PBT
 libraries require users to manually write some extra, often
 non-trivial, functions in order to provide effective testing. These
@@ -86,18 +86,19 @@ counter-examples.
 
 This paper proposes an alternative approach to PBT based on symbolic
 execution. In contrast to black-box, library-based approaches such as
-Quickcheck or Smallcheck, our testing approach is language-based and
+QuickCheck or SmallCheck, our testing approach is language-based and
 white-box. The white-box nature of the approach means that it can exploit
 the definitions of the functions and properties being tested.
 This removes the need of manual test data generators, thus
 moving the burden of carefully analyzing the program and properties
-under test from the programmer to the computer. Moreover, symbolic execution makes it possible to explore execution paths that neither random testing nor bounded-exhaustive approach can easily cover.
+under test from the programmer to the computer. Moreover, symbolic execution makes it possible
+to explore execution paths that neither random testing nor bounded-exhaustive approach can easily cover.
 Therefore our approach is able to find corner case bugs that QuickCheck and SmallCheck can hardly find.
 To prove the effectiveness of our approach in practice we developed a small Mini-ML style
 functional language and conducted several case studies to compare
 various property-based testing approaches. The results indicate
-that finding counter-examples with a symbolic-based testing approach
-is competitive and sometimes better than Quickcheck, while avoiding
+that finding counterexamples with a symbolic-based testing approach
+is competitive and sometimes better than QuickCheck, while avoiding
 extra code for generators or shrinking functions.
 \end{abstract}
 
